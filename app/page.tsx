@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface QuizQuestion {
   question: string;
@@ -58,9 +58,6 @@ export default function Page() {
   // État du Quiz & Audio
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: number }>({});
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-
-  // Référence pour l'export de photo
-  const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const savedProfile = localStorage.getItem('samnote_user_profile');
@@ -296,7 +293,7 @@ export default function Page() {
 
             {/* RÉSULTATS GENERES */}
             {generatedData && (
-              <div ref={exportRef} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
                 {/* Résumé & Script Audio */}
                 <div style={{ backgroundColor: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid #1f2937' }}>

@@ -10,16 +10,15 @@ export async function POST(req: Request) {
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'Clé API Gemini manquante.' },
+        { error: 'Clé API Gemini manquante dans les variables d\'environnement.' },
         { status: 500 }
       );
     }
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
-        temperature: 0.2,
       },
     });
 
@@ -59,7 +58,7 @@ Profil :
 - Filière : ${userProfile?.field || 'Informatique'}
 
 Contenu :
-${courseText || 'Analyse l\'image.'}`;
+${courseText || 'Analyse la photo transmise.'}`;
 
     const contents: any[] = [prompt];
 
