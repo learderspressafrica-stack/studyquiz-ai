@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { NextResponse } from 'next/server';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export async function POST(req: Request) {
   try {
@@ -14,14 +14,6 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
-
-    // UTILISER UN NOM DE MODÈLE VALIDE (gemini-1.5-flash)
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-      },
-    });
 
     const prompt = `Tu es un assistant pédagogique. Génère un objet JSON valide suivant exactement la structure ci-dessous.
 
@@ -61,7 +53,7 @@ Profil :
 Contenu :
 ${courseText || 'Analyse la photo transmise.'}`;
 
-    const contents: any[] = [prompt];
+    let contents: any[] = [prompt];
 
     if (homeworkImageBase64) {
       const parts = homeworkImageBase64.split(',');
@@ -76,8 +68,15 @@ ${courseText || 'Analyse la photo transmise.'}`;
       });
     }
 
-    const result = await model.generateContent(contents);
-    let rawText = result.response.text();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: contents,
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    let rawText = response.text || '';
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     const parsedData = JSON.parse(rawText);
@@ -86,7 +85,7 @@ ${courseText || 'Analyse la photo transmise.'}`;
   } catch (error: any) {
     console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erreur lors de la génération du quiz.' },
+      { error: error?.message || 'Erreur lors de la génération du contenu.' },
       { status: 500 }
     );
   }
