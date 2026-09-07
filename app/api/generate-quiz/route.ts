@@ -10,12 +10,11 @@ export async function POST(req: Request) {
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'Clé API Gemini manquante dans le fichier .env.local' },
+        { error: 'Clé API Gemini manquante.' },
         { status: 500 }
       );
     }
 
-    // Utilisation du modèle gemini-3.6-flash
     const model = genAI.getGenerativeModel({
       model: 'gemini-3.6-flash',
       generationConfig: {
@@ -24,36 +23,42 @@ export async function POST(req: Request) {
       },
     });
 
-    const prompt = `Tu es un assistant pédagogique. Génère uniquement un objet JSON valide qui respecte scrupuleusement la structure ci-dessous. Ne rajoute aucun texte, ni balise Markdown autour du JSON.
+    const prompt = `Tu es un assistant pédagogique. Génère un objet JSON valide suivant exactement la structure ci-dessous.
 
 Structure JSON attendue :
 {
   "title": "Titre explicatif du cours",
-  "summary": "Résumé synthétique et pédagogique du cours",
-  "audioScript": "Script concis destiné à être lu à voix haute pour réviser le cours",
+  "summary": "Résumé synthétique du cours",
+  "audioScript": "Script concis à lire à voix haute",
+  "qaPairs": [
+    {
+      "question": "Question directe 1 ?",
+      "answer": "Réponse explicite 1"
+    }
+  ],
   "quiz": [
     {
       "question": "Question 1",
-      "options": ["Choix A", "Choix B", "Choix C", "Choix D"],
+      "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
-      "explanation": "Explication de la réponse"
+      "explanation": "Explication"
     }
   ],
   "weeklyAssignment": {
     "title": "Devoir de révision",
-    "instructions": "Consignes de l'exercice",
-    "questions": ["Question 1", "Question 2"],
-    "practicalExercise": "Exercice pratique à réaliser",
-    "gradingCriteria": "Critères d'évaluation"
+    "instructions": "Consignes",
+    "questions": ["Q1", "Q2"],
+    "practicalExercise": "Exercice pratique",
+    "gradingCriteria": "Critères de notation"
   }
 }
 
-Profil de l'élève :
+Profil :
 - Niveau : ${userProfile?.level || 'Lycée'}
 - Classe : ${userProfile?.grade || 'Terminale'}
 - Filière : ${userProfile?.field || 'Informatique'}
 
-Contenu du cours :
+Contenu :
 ${courseText || 'Analyse l\'image.'}`;
 
     const contents: any[] = [prompt];
@@ -73,16 +78,15 @@ ${courseText || 'Analyse l\'image.'}`;
 
     const result = await model.generateContent(contents);
     let rawText = result.response.text();
-
     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     const parsedData = JSON.parse(rawText);
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error('Erreur Backend Gemini:', error);
+    console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erreur lors de la génération du contenu.' },
+      { error: error?.message || 'Erreur lors de la génération.' },
       { status: 500 }
     );
   }
