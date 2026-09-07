@@ -10,13 +10,14 @@ export async function POST(req: Request) {
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'Clé API Gemini manquante dans les variables d\'environnement.' },
+        { error: "Clé API Gemini manquante dans les variables d'environnement Vercel." },
         { status: 500 }
       );
     }
 
+    // UTILISER UN NOM DE MODÈLE VALIDE (gemini-1.5-flash)
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
       },
@@ -85,7 +86,7 @@ ${courseText || 'Analyse la photo transmise.'}`;
   } catch (error: any) {
     console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erreur lors de la génération.' },
+      { error: error?.message || 'Erreur lors de la génération du quiz.' },
       { status: 500 }
     );
   }
