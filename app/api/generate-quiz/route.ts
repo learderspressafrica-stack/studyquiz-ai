@@ -69,7 +69,7 @@ ${courseText || 'Analyse la photo transmise.'}`;
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: contents,
       config: {
         responseMimeType: 'application/json',
