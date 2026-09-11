@@ -10,47 +10,38 @@ export async function POST(req: Request) {
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: "Clé API Gemini manquante dans les variables d'environnement Vercel." },
+        { error: "Clé API Gemini manquante dans Vercel." },
         { status: 500 }
       );
     }
 
-    const prompt = `Tu es un assistant pédagogique. Génère un objet JSON valide suivant exactement la structure ci-dessous.
+    const subject = userProfile?.subject || 'Électronique Générale';
 
-Structure JSON attendue :
+    const prompt = `Tu es un professeur expert en Électronique. Fais une analyse complète pour la matière suivante : ${subject}.
+
+Génère un objet JSON valide avec cette structure exacte :
 {
-  "title": "Titre explicatif du cours",
-  "summary": "Résumé synthétique du cours",
-  "audioScript": "Script concis à lire à voix haute",
+  "title": "Titre explicatif de la leçon d'électronique",
+  "summary": "Résumé concis avec les formules clés, schémas ou règles essentielles de ${subject}",
+  "audioScript": "Explication orale claire de la leçon",
   "qaPairs": [
     {
-      "question": "Question directe 1 ?",
-      "answer": "Réponse explicite 1"
+      "question": "Question classique d'examen en ${subject} ?",
+      "answer": "Réponse détaillée"
     }
   ],
   "quiz": [
     {
-      "question": "Question 1",
+      "question": "Question 1 de test ?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
-      "explanation": "Explication"
+      "explanation": "Explication technique"
     }
-  ],
-  "weeklyAssignment": {
-    "title": "Devoir de révision",
-    "instructions": "Consignes",
-    "questions": ["Q1", "Q2"],
-    "practicalExercise": "Exercice pratique",
-    "gradingCriteria": "Critères de notation"
-  }
+  ]
 }
 
-Profil :
-- Niveau : ${userProfile?.level || 'Lycée'}
-- Classe : ${userProfile?.grade || 'Terminale'}
-- Filière : ${userProfile?.field || 'Informatique'}
-
-Contenu :
+Matière : ${subject}
+Contenu transmis par l'élève :
 ${courseText || 'Analyse la photo transmise.'}`;
 
     let contents: any[] = [prompt];
@@ -85,7 +76,7 @@ ${courseText || 'Analyse la photo transmise.'}`;
   } catch (error: any) {
     console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erreur lors de la génération du contenu.' },
+      { error: error?.message || 'Erreur de génération.' },
       { status: 500 }
     );
   }
