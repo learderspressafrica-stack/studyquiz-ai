@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Charger pdf-parse-fork (version nettoyée des dépendances Canvas/DOMMatrix)
+    // Dynamic import avec require pour éviter les erreurs de compilation/build Vercel
     const pdfParse = require('pdf-parse-fork');
     const pdfData = await pdfParse(buffer);
 

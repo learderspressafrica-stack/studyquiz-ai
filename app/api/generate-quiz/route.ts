@@ -1,108 +1,80 @@
-import { GoogleGenAI } from '@google/genai';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+export const runtime = 'nodejs';
 
-const MODEL_NAME = 'gemini-3.6-flash';
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { courseText, userProfile, homeworkImageBase64 } = body;
+    const { prompt } = await req.json();
 
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "Clé API Gemini manquante dans Vercel." },
-        { status: 500 }
-      );
+    if (!prompt) {
+      return NextResponse.json({ error: 'Aucun texte fourni pour la génération.' }, { status: 400 });
     }
 
-    const subject = userProfile?.subject || 'Électronique';
-    const mode = userProfile?.mode || 'generate';
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Clé API non configurée.' }, { status: 500 });
+    }
 
-    const prompt = `Tu es un professeur expert et très pédagogue, spécialisé dans la matière : "${subject}".
+    const systemInstruction = `
+Tu es un professeur expert et un assistant pédagogique. À partir du cours ou texte fourni, génère une réponse STRICTEMENT au format JSON valide, sans balises markdown.
 
-Consigne de cadrage :
-- Si la matière est "Droit" ou "Gestion", réponds exclusivement avec les lois, concepts de gestion et exemples associés.
-- Si la matière est technique ("Électronique", "Électricité", "Automatisme", "TP", "Dessin"), fournis des explications claires, des applications pratiques réelles et des schémas visuels sous forme de texte/ASCII.
-
-Format attendu : Un objet JSON valide respectant cette structure exacte :
+Le JSON doit respecter scrupuleusement cette structure :
 {
-  "title": "Titre explicatif clair",
-  "summary": "Synthèse et explications simples et concises",
-  "audioScript": "Texte dynamique et pédagogique destiné à être lu à voix haute",
-  "conceptExplanations": [
-    {
-      "concept": "Nom du composant, principe ou article de loi",
-      "simpleDefinition": "Explication simple et claire",
-      "diagram": "Schéma visuel en texte/ASCII ou exemple d'application concrète"
-    }
+  "title": "Titre du cours",
+  "summary": "Résumé clair et concis du cours, parfaitement adapté à une lecture audio.",
+  "realWorldExamples": [
+    "Exemple concret 1 issu du monde réel ou de l'industrie",
+    "Exemple concret 2 explicatif"
   ],
-  "qaPairs": [
-    {
-      "question": "Question classique d'examen ?",
-      "answer": "Réponse complète et accessible"
-    }
-  ],
+  "keywords": ["Transistor", "Resistance"], // Composants clés pour les images
   "quiz": [
     {
-      "question": "Question de test de connaissances ?",
+      "question": "Texte de la question ?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
-      "explanation": "Explication étape par étape de la bonne réponse"
+      "explanation": "Explication détaillée de la bonne réponse avec justification pédagogique."
     }
+    // Génère AU MINIMUM 5 à 10 questions
   ]
 }
+`;
 
-Demande / Recherche de l'élève en ${subject} :
-${courseText || 'Analyse l’image transmise.'}`;
-
-    let contents: any[] = [prompt];
-
-    if (homeworkImageBase64) {
-      const parts = homeworkImageBase64.split(',');
-      const mimeType = parts[0]?.match(/:(.*?);/)?.[1] || 'image/jpeg';
-      const base64Data = parts[1] || homeworkImageBase64;
-
-      contents.push({
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType,
-        },
-      });
-    }
-
-    let responseText = '';
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (attempts < maxAttempts && !responseText) {
-      try {
-        attempts++;
-        const response = await ai.models.generateContent({
-          model: MODEL_NAME,
-          contents: contents,
-          config: {
-            responseMimeType: 'application/json',
-          },
-        });
-        if (response.text) responseText = response.text;
-      } catch (err: any) {
-        if (attempts >= maxAttempts) throw err;
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                { text: systemInstruction },
+                { text: `Voici le cours à analyser :\n${prompt}` }
+              ]
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
       }
+    );
+
+    const data = await response.json();
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!rawText) {
+      throw new Error("L'IA n'a pas retourné de réponse.");
     }
 
-    let rawText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(rawText);
-
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error('Erreur Backend:', error);
+    console.error('Erreur API Generate:', error);
     return NextResponse.json(
-      { error: "Le service Gemini 3.6 est temporairement sollicité. Veuillez réespayer." },
-      { status: 503 }
+      { error: error?.message || 'Erreur lors de la génération du contenu.' },
+      { status: 500 }
     );
   }
 }
