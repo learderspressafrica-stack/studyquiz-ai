@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     if (!apiKey) {
       return NextResponse.json(
-        { error: "La clé GEMINI_API_KEY n'est pas configurée." },
+        { error: "La clé GEMINI_API_KEY n'est pas configurée dans les variables Vercel." },
         { status: 500 }
       );
     }
@@ -17,15 +17,15 @@ export async function POST(req: Request) {
 
     if (!prompt) {
       return NextResponse.json(
-        { error: "Aucun texte fourni pour l'analyse." },
+        { error: "Aucun contenu n'a été fourni." },
         { status: 400 }
       );
     }
 
-    // Appel strict à Gemini 3.6 Flash via API v1
+    // Utilisation de la version stable recommandée pour l'API v1
     const model = genAI.getGenerativeModel(
       {
-        model: 'gemini-3.6-flash',
+        model: 'gemini-1.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
         },
@@ -34,21 +34,21 @@ export async function POST(req: Request) {
     );
 
     const systemInstruction = `
-Tu es un assistant pédagogique expert pour Samnote.
-Analyse le document/cours fourni et réponds exclusivement sous forme d'objet JSON respectant la structure suivante :
+Tu es l'assistant pédagogique Samnote.
+Analyse le texte fourni et génère obligatoirement un objet JSON strict :
 {
-  "summary": "Explication claire, simplifiée et pédagogique du cours...",
+  "summary": "Résumé clair et explication pédagogique du cours...",
   "qa": [
     {
-      "question": "Question essentielle de compréhension ?",
-      "answer": "Réponse claire et explicative."
+      "question": "Question de compréhension importante ?",
+      "answer": "Explication claire et détaillée."
     }
   ],
   "componentsToIllustrate": [
     {
       "name": "Nom du composant ou concept clé",
-      "description": "Explication du rôle ou fonctionnement.",
-      "imagePrompt": "Technical engineering schematic diagram of [name], clean lines, isometric style, labeled components, white background"
+      "description": "Explication de son fonctionnement.",
+      "imagePrompt": "Technical drawing schematic, isometric style, clean lines, white background"
     }
   ],
   "quiz": [
@@ -61,12 +61,12 @@ Analyse le document/cours fourni et réponds exclusivement sous forme d'objet JS
 }
 `;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nCours à analyser :\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nTexte du cours :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
       return NextResponse.json(
-        { error: "Gemini 3.6 n'a pas renvoyé de contenu." },
+        { error: "Aucun résultat n'a été retourné." },
         { status: 500 }
       );
     }
@@ -75,9 +75,9 @@ Analyse le document/cours fourni et réponds exclusivement sous forme d'objet JS
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("Erreur Gemini 3.6:", error);
+    console.error("Erreur API Gemini:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors du traitement par Gemini 3.6" },
+      { error: error.message || "Erreur lors de l'analyse du cours." },
       { status: 500 }
     );
   }
