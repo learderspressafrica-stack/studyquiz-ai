@@ -2,29 +2,44 @@
 
 import React, { useState, useEffect } from 'react';
 
-const MATIERES = [
-  { id: 'electricite', name: 'Électricité' },
-  { id: 'analogique', name: 'Électronique Analogique' },
-  { id: 'numerique', name: 'Électronique Numérique' },
-  { id: 'automatisme', name: 'Automatisme' },
-  { id: 'tp', name: 'Travaux Pratiques (TP)' },
-  { id: 'dessin_technique', name: 'Dessin Technique' },
-  { id: 'gestion', name: 'Gestion' },
-  { id: 'droit', name: 'Droit' },
+interface Matiere {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+const MATIERES: Matiere[] = [
+  { id: 'electricite', name: 'Électricité', icon: '⚡' },
+  { id: 'analogique', name: 'Électronique Analogique', icon: '🔌' },
+  { id: 'numerique', name: 'Électronique Numérique', icon: '💻' },
+  { id: 'automatisme', name: 'Automatisme', icon: '🤖' },
+  { id: 'tp', name: 'Travaux Pratiques (TP)', icon: '🛠️' },
+  { id: 'dessin_technique', name: 'Dessin Technique', icon: '📐' },
+  { id: 'gestion', name: 'Gestion', icon: '📊' },
+  { id: 'droit', name: 'Droit', icon: '⚖️' },
 ];
 
 export default function Page() {
-  const [selectedSubject, setSelectedSubject] = useState(MATIERES[0].name);
-  const [historyFilter, setHistoryFilter] = useState('Toutes');
-  const [courseText, setCourseText] = useState('');
+  const [selectedSubject, setSelectedSubject] = useState<string>(MATIERES[0].name);
+  const [activeTab, setActiveTab] = useState<'generate' | 'search' | 'history'>('generate');
+  
+  // Saisie texte & photo
+  const [courseText, setCourseText] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [imageFile, setImageFile] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  
+  // États de chargement et résultats
+  const [loading, setLoading] = useState<boolean>(false);
   const [generatedData, setGeneratedData] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
+  
+  // Historique & Filtres
   const [history, setHistory] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  const [historyFilter, setHistoryFilter] = useState<string>('Toutes');
 
-  // Charger l'historique local
+  // Réponses utilisateur au quiz { [questionIndex]: optionIndex }
+  const [userAnswers, setUserAnswers] = useState<{ [key: number]: number }>({});
+
   useEffect(() => {
     const savedHistory = localStorage.getItem('samnote_history');
     if (savedHistory) {
@@ -45,33 +60,38 @@ export default function Page() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!courseText && !imageFile) {
-      setErrorMsg('Veuillez saisir un texte ou charger une photo de votre cours.');
+  // Traitement Génération / Recherche
+  const handleProcess = async (mode: 'generate' | 'search') => {
+    const textToSubmit = mode === 'search' ? searchQuery : courseText;
+    
+    if (!textToSubmit && !imageFile) {
+      setErrorMsg('Veuillez entrer une question/recherche ou joindre un cours.');
       return;
     }
 
     setLoading(true);
     setErrorMsg('');
+    setUserAnswers({});
 
     try {
       const response = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          courseText,
+          courseText: textToSubmit,
           homeworkImageBase64: imageFile,
-          userProfile: { subject: selectedSubject },
+          userProfile: { subject: selectedSubject, mode },
         }),
       });
 
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erreur lors de la génération.');
+      if (!response.ok) throw new Error(data.error || 'Erreur lors du traitement.');
 
       const newItem = {
         id: Date.now(),
         date: new Date().toLocaleDateString('fr-FR'),
         subject: selectedSubject,
+        mode,
         data,
       };
 
@@ -80,6 +100,7 @@ export default function Page() {
       localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
 
       setGeneratedData(data);
+      if (mode === 'search') setActiveTab('generate');
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -96,297 +117,459 @@ export default function Page() {
     }
   };
 
-  const filteredHistory = history.filter((item) =>
+  const handleOptionSelect = (qIndex: number, oIndex: number) => {
+    if (userAnswers[qIndex] !== undefined) return;
+    setUserAnswers((prev) => ({ ...prev, [qIndex]: oIndex }));
+  };
+
+  const calculateScore = () => {
+    if (!generatedData?.quiz) return 0;
+    let score = 0;
+    generatedData.quiz.forEach((q: any, idx: number) => {
+      if (userAnswers[idx] === q.correctIndex) score++;
+    });
+    return score;
+  };
+
+  const filteredHistory = history.filter((item: any) =>
     historyFilter === 'Toutes' ? true : item.subject === historyFilter
   );
 
   return (
-    <div style={{ maxWidth: '100vw', minHeight: '100vh', padding: '16px', boxSizing: 'border-box' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0b0f19', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* En-tête */}
-      <header style={{ textAlign: 'center', marginBottom: '16px' }}>
-        <h1 style={{ fontSize: '22px', color: '#38bdf8', margin: '0 0 6px 0' }}>⚡ Samnote - Électronique</h1>
-        <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0 }}>Fiches, explications, visuels et révisions de cours</p>
-      </header>
+      {/* SIDEBAR LATÉRALE À GAUCHE */}
+      <aside style={{
+        width: '280px',
+        backgroundColor: '#111827',
+        borderRight: '1px solid #1f2937',
+        padding: '20px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        flexShrink: 0
+      }}>
+        <div>
+          {/* Logo App */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
+            <div style={{ backgroundColor: '#0284c7', padding: '8px 12px', borderRadius: '10px', fontSize: '18px', fontWeight: 'bold' }}>⚡</div>
+            <div>
+              <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#f8fafc' }}>Samnote</h1>
+              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600' }}>Électronique & Sciences</span>
+            </div>
+          </div>
 
-      {/* Navigation Principale (Générer / Historique) */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-        <button
-          onClick={() => setActiveTab('generate')}
-          style={{
-            flex: 1,
-            padding: '12px',
-            borderRadius: '8px',
-            border: 'none',
-            backgroundColor: activeTab === 'generate' ? '#0284c7' : '#1e293b',
-            color: '#fff',
-            fontWeight: 'bold',
-            fontSize: '14px',
-            cursor: 'pointer'
-          }}
-        >
-          🚀 Nouveautés & Génération
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          style={{
-            flex: 1,
-            padding: '12px',
-            borderRadius: '8px',
-            border: 'none',
-            backgroundColor: activeTab === 'history' ? '#0284c7' : '#1e293b',
-            color: '#fff',
-            fontWeight: 'bold',
-            fontSize: '14px',
-            cursor: 'pointer'
-          }}
-        >
-          📚 Historique ({history.length})
-        </button>
-      </div>
+          {/* Navigation Principale */}
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '24px' }}>
+            <button
+              onClick={() => setActiveTab('generate')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: activeTab === 'generate' ? '#1e293b' : 'transparent',
+                color: activeTab === 'generate' ? '#38bdf8' : '#94a3b8',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              🚀 Workspace & Cours
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: activeTab === 'history' ? '#1e293b' : 'transparent',
+                color: activeTab === 'history' ? '#38bdf8' : '#94a3b8',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              📚 Historique ({history.length})
+            </button>
+          </nav>
 
-      {activeTab === 'generate' && (
-        <>
-          {/* Sélection de Matière */}
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '16px', WebkitOverflowScrolling: 'touch' }}>
-            {MATIERES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setSelectedSubject(m.name)}
+          {/* Sélecteur de Matière */}
+          <div>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', letterSpacing: '0.05em', display: 'block', marginBottom: '10px' }}>
+              Matière Active
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '320px', overflowY: 'auto' }}>
+              {MATIERES.map((m: Matiere) => (
+                <button
+                  key={m.id}
+                  onClick={() => setSelectedSubject(m.name)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: selectedSubject === m.name ? '#0284c7' : 'transparent',
+                    color: selectedSubject === m.name ? '#ffffff' : '#94a3b8',
+                    fontSize: '13px',
+                    fontWeight: selectedSubject === m.name ? 'bold' : 'normal',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: '0.2s'
+                  }}
+                >
+                  <span>{m.icon}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Pied de sidebar - Propriété CSS corrigée */}
+        <div style={{ borderTop: '1px solid #1f2937', paddingTop: '12px', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
+          Propulsé par Gemini 3.6
+        </div>
+      </aside>
+
+      {/* ZONE PRINCIPALE DE TRAVAIL (À DROITE) */}
+      <main style={{ flex: 1, padding: '24px 32px', overflowY: 'auto', maxWidth: '1200px', margin: '0 auto' }}>
+        
+        {/* Barre de Recherche Intelligente */}
+        <div style={{ backgroundColor: '#1e293b', padding: '12px 16px', borderRadius: '12px', display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px', border: '1px solid #334155' }}>
+          <span style={{ fontSize: '18px' }}>🔍</span>
+          <input
+            type="text"
+            placeholder={`Rechercher ou poser une question ciblée sur : ${selectedSubject}...`}
+            value={searchQuery}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleProcess('search')}
+            style={{
+              flex: 1,
+              backgroundColor: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: '#fff',
+              fontSize: '14px'
+            }}
+          />
+          <button
+            onClick={() => handleProcess('search')}
+            disabled={loading}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#0284c7',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              cursor: 'pointer'
+            }}
+          >
+            Rechercher
+          </button>
+        </div>
+
+        {activeTab === 'generate' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* Boîte de Saisie */}
+            <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h2 style={{ fontSize: '16px', color: '#38bdf8', margin: 0, fontWeight: 'bold' }}>
+                  📥 Saisie de Cours ou Devoir ({selectedSubject})
+                </h2>
+              </div>
+
+              <textarea
+                placeholder={`Collez ici votre cours, une leçon ou une question technique en ${selectedSubject}...`}
+                value={courseText}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCourseText(e.target.value)}
                 style={{
-                  padding: '8px 14px',
-                  borderRadius: '16px',
+                  width: '100%',
+                  height: '120px',
+                  backgroundColor: '#0b0f19',
+                  color: '#f8fafc',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box',
+                  marginBottom: '12px',
+                  outline: 'none'
+                }}
+              />
+
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <label style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: '#e2e8f0',
+                  fontWeight: '500'
+                }}>
+                  📷 Importer photo du cours
+                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                </label>
+
+                {imageFile && <span style={{ fontSize: '12px', color: '#4ade80' }}>✓ Photo jointe</span>}
+
+                <button
+                  onClick={() => handleProcess('generate')}
+                  disabled={loading}
+                  style={{
+                    marginLeft: 'auto',
+                    padding: '12px 24px',
+                    backgroundColor: loading ? '#64748b' : '#0284c7',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    cursor: loading ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  {loading ? 'Analyse & Génération...' : '⚡ Générer la Fiche & Quiz'}
+                </button>
+              </div>
+            </div>
+
+            {errorMsg && (
+              <div style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
+                {errorMsg}
+              </div>
+            )}
+
+            {/* RÉSULTATS GÉNÉRÉS */}
+            {generatedData && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                {/* Résumé & Synthèse Vocale */}
+                <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '12px', backgroundColor: '#0284c7', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+                      {selectedSubject}
+                    </span>
+                    {generatedData.audioScript && (
+                      <button
+                        onClick={() => speakAudio(generatedData.audioScript)}
+                        style={{ padding: '6px 14px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                      >
+                        🔊 Écouter l'explication audio
+                      </button>
+                    )}
+                  </div>
+                  <h3 style={{ fontSize: '18px', color: '#f8fafc', margin: '0 0 10px 0' }}>{generatedData.title}</h3>
+                  <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#cbd5e1', margin: 0 }}>{generatedData.summary}</p>
+                </div>
+
+                {/* Explications des Notions & Schémas */}
+                {generatedData.conceptExplanations && generatedData.conceptExplanations.length > 0 && (
+                  <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
+                    <h3 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0, marginBottom: '14px' }}>💡 Notions Clés & Schémas Explicatifs</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
+                      {generatedData.conceptExplanations.map((item: any, idx: number) => (
+                        <div key={idx} style={{ backgroundColor: '#0b0f19', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+                          <h4 style={{ color: '#facc15', margin: '0 0 6px 0', fontSize: '14px' }}>🔹 {item.concept}</h4>
+                          <p style={{ fontSize: '13px', color: '#cbd5e1', margin: '0 0 10px 0', lineHeight: '1.4' }}>{item.simpleDefinition}</p>
+                          {item.diagram && (
+                            <pre style={{ backgroundColor: '#111827', color: '#38bdf8', padding: '10px', borderRadius: '6px', fontSize: '12px', overflowX: 'auto', margin: 0, border: '1px dashed #334155' }}>
+                              {item.diagram}
+                            </pre>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Questions & Réponses Directes */}
+                {generatedData.qaPairs && (
+                  <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
+                    <h3 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0, marginBottom: '14px' }}>❓ Questions / Réponses d'Examen</h3>
+                    {generatedData.qaPairs.map((item: any, idx: number) => (
+                      <div key={idx} style={{ marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #1e293b' }}>
+                        <p style={{ fontWeight: 'bold', fontSize: '14px', color: '#f8fafc', margin: '0 0 4px 0' }}>Q{idx + 1}. {item.question}</p>
+                        <p style={{ fontSize: '13px', color: '#4ade80', margin: 0 }}>R: {item.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* QUIZ INTERACTIF DYNAMIQUE */}
+                {generatedData.quiz && (
+                  <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h3 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>🎯 Quiz Interactif d'Auto-Évaluation</h3>
+                      {Object.keys(userAnswers).length === generatedData.quiz.length && (
+                        <span style={{ backgroundColor: '#0284c7', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>
+                          Score: {calculateScore()} / {generatedData.quiz.length}
+                        </span>
+                      )}
+                    </div>
+
+                    {generatedData.quiz.map((q: any, qIdx: number) => {
+                      const selectedOpt = userAnswers[qIdx];
+                      const isAnswered = selectedOpt !== undefined;
+
+                      return (
+                        <div key={qIdx} style={{ marginBottom: '16px', backgroundColor: '#0b0f19', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
+                          <p style={{ fontWeight: 'bold', fontSize: '14px', color: '#f8fafc', margin: '0 0 12px 0' }}>
+                            {qIdx + 1}. {q.question}
+                          </p>
+
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {q.options.map((opt: string, oIdx: number) => {
+                              let bgColor = '#1e293b';
+                              let borderColor = 'transparent';
+                              let textColor = '#e2e8f0';
+
+                              if (isAnswered) {
+                                if (oIdx === q.correctIndex) {
+                                  bgColor = selectedOpt === q.correctIndex ? '#15803d' : '#ca8a04';
+                                  borderColor = '#22c55e';
+                                  textColor = '#ffffff';
+                                } else if (oIdx === selectedOpt) {
+                                  bgColor = '#991b1b';
+                                  borderColor = '#ef4444';
+                                  textColor = '#ffffff';
+                                }
+                              }
+
+                              return (
+                                <button
+                                  key={oIdx}
+                                  onClick={() => handleOptionSelect(qIdx, oIdx)}
+                                  disabled={isAnswered}
+                                  style={{
+                                    textAlign: 'left',
+                                    padding: '12px',
+                                    backgroundColor: bgColor,
+                                    border: `2px solid ${borderColor}`,
+                                    borderRadius: '8px',
+                                    fontSize: '13px',
+                                    color: textColor,
+                                    cursor: isAnswered ? 'default' : 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    fontWeight: isAnswered && (oIdx === q.correctIndex || oIdx === selectedOpt) ? 'bold' : 'normal'
+                                  }}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {isAnswered && (
+                            <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#111827', borderRadius: '6px', fontSize: '13px', color: '#cbd5e1', borderLeft: '3px solid #38bdf8' }}>
+                              <strong>💡 Explication :</strong> {q.explanation}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VUE HISTORIQUE FILTRABLE */}
+        {activeTab === 'history' && (
+          <div>
+            <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Recherches & Cours</h2>
+
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '20px' }}>
+              <button
+                onClick={() => setHistoryFilter('Toutes')}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '20px',
                   border: 'none',
-                  backgroundColor: selectedSubject === m.name ? '#0284c7' : '#1e293b',
-                  color: selectedSubject === m.name ? '#fff' : '#94a3b8',
-                  whiteSpace: 'nowrap',
+                  backgroundColor: historyFilter === 'Toutes' ? '#0284c7' : '#1e293b',
+                  color: '#fff',
                   fontSize: '13px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   flexShrink: 0
                 }}
               >
-                {m.name}
+                Toutes les matières
               </button>
-            ))}
-          </div>
-
-          {/* Saisie & Photo */}
-          <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px', marginBottom: '16px' }}>
-            <textarea
-              placeholder={`Saisissez le texte de cours de ${selectedSubject} ici...`}
-              value={courseText}
-              onChange={(e) => setCourseText(e.target.value)}
-              style={{
-                width: '100%',
-                height: '110px',
-                backgroundColor: '#0f172a',
-                color: '#fff',
-                border: '1px solid #334155',
-                borderRadius: '8px',
-                padding: '10px',
-                fontSize: '14px',
-                boxSizing: 'border-box',
-                marginBottom: '10px'
-              }}
-            />
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <label style={{
-                textAlign: 'center',
-                backgroundColor: '#334155',
-                padding: '12px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                color: '#e2e8f0'
-              }}>
-                📷 Importer/Prendre une photo de cours
-                <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-              </label>
-
-              {imageFile && <span style={{ fontSize: '12px', color: '#4ade80', textAlign: 'center' }}>✓ Photo importée</span>}
-
-              <button
-                onClick={handleGenerate}
-                disabled={loading}
-                style={{
-                  padding: '14px',
-                  backgroundColor: loading ? '#64748b' : '#0284c7',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  fontWeight: 'bold',
-                  cursor: loading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {loading ? 'Analyse pédagogique...' : '⚡ Générer le résumé & Quiz'}
-              </button>
-            </div>
-          </div>
-
-          {errorMsg && (
-            <div style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', padding: '10px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
-              {errorMsg}
-            </div>
-          )}
-
-          {/* Résultats Générés */}
-          {generatedData && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              
-              {/* Résumé & Bouton Audio */}
-              <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h2 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>📝 Fiche de Révision</h2>
-                  {generatedData.audioScript && (
-                    <button
-                      onClick={() => speakAudio(generatedData.audioScript)}
-                      style={{ padding: '6px 12px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
-                    >
-                      🔊 Écouter
-                    </button>
-                  )}
-                </div>
-                <h3 style={{ fontSize: '15px', color: '#f1f5f9', marginTop: 0 }}>{generatedData.title}</h3>
-                <p style={{ fontSize: '14px', lineHeight: '1.5', color: '#cbd5e1', margin: 0 }}>{generatedData.summary}</p>
-              </div>
-
-              {/* Explication Simplifiée des Notions & Schémas */}
-              {generatedData.conceptExplanations && generatedData.conceptExplanations.length > 0 && (
-                <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px' }}>
-                  <h2 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0 }}>💡 Explication des composants & Notions</h2>
-                  {generatedData.conceptExplanations.map((item: any, idx: number) => (
-                    <div key={idx} style={{ backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', marginBottom: '10px' }}>
-                      <h4 style={{ color: '#facc15', margin: '0 0 6px 0', fontSize: '14px' }}>🔹 {item.concept}</h4>
-                      <p style={{ fontSize: '13px', color: '#e2e8f0', margin: '0 0 8px 0', lineHeight: '1.4' }}>{item.simpleDefinition}</p>
-                      {item.diagram && (
-                        <pre style={{ backgroundColor: '#1e293b', color: '#38bdf8', padding: '8px', borderRadius: '6px', fontSize: '12px', overflowX: 'auto', margin: 0 }}>
-                          {item.diagram}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Questions & Réponses Directes */}
-              {generatedData.qaPairs && (
-                <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px' }}>
-                  <h2 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0 }}>❓ Questions & Réponses Directes</h2>
-                  {generatedData.qaPairs.map((item: any, idx: number) => (
-                    <div key={idx} style={{ marginBottom: '10px', borderBottom: '1px solid #334155', paddingBottom: '8px' }}>
-                      <p style={{ fontWeight: 'bold', fontSize: '13px', color: '#f8fafc', margin: '0 0 4px 0' }}>Q{idx + 1}. {item.question}</p>
-                      <p style={{ fontSize: '13px', color: '#4ade80', margin: 0 }}>R: {item.answer}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Quiz */}
-              {generatedData.quiz && (
-                <div style={{ backgroundColor: '#1e293b', padding: '16px', borderRadius: '12px' }}>
-                  <h2 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0 }}>🎯 Quiz d'auto-évaluation</h2>
-                  {generatedData.quiz.map((q: any, qIdx: number) => (
-                    <div key={qIdx} style={{ marginBottom: '12px', backgroundColor: '#0f172a', padding: '10px', borderRadius: '8px' }}>
-                      <p style={{ fontWeight: 'bold', fontSize: '13px', margin: '0 0 6px 0' }}>{qIdx + 1}. {q.question}</p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {q.options.map((opt: string, oIdx: number) => (
-                          <div key={oIdx} style={{ padding: '6px 10px', backgroundColor: '#1e293b', borderRadius: '4px', fontSize: '12px', color: '#cbd5e1' }}>
-                            {opt}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Vue HISTORIQUE FILTRABLE */}
-      {activeTab === 'history' && (
-        <div>
-          <h2 style={{ fontSize: '18px', color: '#38bdf8', marginTop: 0 }}>📚 Historique des Fiches</h2>
-
-          {/* Filtres par Matière */}
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', marginBottom: '16px' }}>
-            <button
-              onClick={() => setHistoryFilter('Toutes')}
-              style={{
-                padding: '6px 12px',
-                borderRadius: '14px',
-                border: 'none',
-                backgroundColor: historyFilter === 'Toutes' ? '#0284c7' : '#1e293b',
-                color: '#fff',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                flexShrink: 0
-              }}
-            >
-              Toutes
-            </button>
-            {MATIERES.map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setHistoryFilter(m.name)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '14px',
-                  border: 'none',
-                  backgroundColor: historyFilter === m.name ? '#0284c7' : '#1e293b',
-                  color: historyFilter === m.name ? '#fff' : '#94a3b8',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  flexShrink: 0
-                }}
-              >
-                {m.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Liste des éléments filtrés */}
-          {filteredHistory.length === 0 ? (
-            <p style={{ color: '#94a3b8', textAlign: 'center', fontSize: '14px' }}>Aucun enregistrement pour : {historyFilter}</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {filteredHistory.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => {
-                    setGeneratedData(item.data);
-                    setSelectedSubject(item.subject);
-                    setActiveTab('generate');
-                  }}
+              {MATIERES.map((m: Matiere) => (
+                <button
+                  key={m.id}
+                  onClick={() => setHistoryFilter(m.name)}
                   style={{
-                    backgroundColor: '#1e293b',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    borderLeft: '4px solid #0284c7',
-                    cursor: 'pointer'
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    backgroundColor: historyFilter === m.name ? '#0284c7' : '#1e293b',
+                    color: historyFilter === m.name ? '#fff' : '#94a3b8',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    flexShrink: 0
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
-                    <span style={{ fontSize: '11px', color: '#64748b' }}>{item.date}</span>
-                  </div>
-                  <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#f8fafc' }}>{item.data.title}</h4>
-                  <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.data.summary}
-                  </p>
-                </div>
+                  {m.name}
+                </button>
               ))}
             </div>
-          )}
-        </div>
-      )}
+
+            {filteredHistory.length === 0 ? (
+              <p style={{ color: '#94a3b8', fontSize: '14px' }}>Aucune recherche enregistrée pour la catégorie : {historyFilter}</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                {filteredHistory.map((item: any) => (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setGeneratedData(item.data);
+                      setSelectedSubject(item.subject);
+                      setUserAnswers({});
+                      setActiveTab('generate');
+                    }}
+                    style={{
+                      backgroundColor: '#111827',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: '1px solid #1f2937',
+                      cursor: 'pointer',
+                      transition: '0.2s'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
+                      <span style={{ fontSize: '11px', color: '#64748b' }}>{item.date}</span>
+                    </div>
+                    <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      {item.data.summary}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </main>
 
     </div>
   );

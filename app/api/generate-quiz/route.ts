@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
-// Modèle fixé sur gemini-3.6-flash
 const MODEL_NAME = 'gemini-3.6-flash';
 
 export async function POST(req: Request) {
@@ -19,42 +18,44 @@ export async function POST(req: Request) {
     }
 
     const subject = userProfile?.subject || 'Électronique';
+    const mode = userProfile?.mode || 'generate';
 
-    const prompt = `Tu es un professeur d'Électronique passionné et très pédagogue.
-Ton objectif est de simplifier le cours pour qu'un élève puisse tout comprendre facilement.
+    const prompt = `Tu es un professeur expert et très pédagogue, spécialisé dans la matière : "${subject}".
 
-Matière : ${subject}
+Consigne de cadrage :
+- Si la matière est "Droit" ou "Gestion", réponds exclusivement avec les lois, concepts de gestion et exemples associés.
+- Si la matière est technique ("Électronique", "Électricité", "Automatisme", "TP", "Dessin"), fournis des explications claires, des applications pratiques réelles et des schémas visuels sous forme de texte/ASCII.
 
-Génère un objet JSON valide suivant exactement cette structure :
+Format attendu : Un objet JSON valide respectant cette structure exacte :
 {
-  "title": "Titre explicatif clair du cours",
-  "summary": "Résumé simple et concis avec les notions fondamentales",
-  "audioScript": "Texte dynamique et pédagogique à lire à voix haute",
+  "title": "Titre explicatif clair",
+  "summary": "Synthèse et explications simples et concises",
+  "audioScript": "Texte dynamique et pédagogique destiné à être lu à voix haute",
   "conceptExplanations": [
     {
-      "concept": "Nom du composant ou de la notion (ex: Transistor, Diode, Bilan de comptabilité)",
-      "simpleDefinition": "Explication très simple, comme si tu l'expliquais à un débutant",
-      "diagram": "Un schéma visuel explicatif simplifié sous forme de dessin ASCII ou texte (ex: [ Base -> Collecteur -> Émetteur ])"
+      "concept": "Nom du composant, principe ou article de loi",
+      "simpleDefinition": "Explication simple et claire",
+      "diagram": "Schéma visuel en texte/ASCII ou exemple d'application concrète"
     }
   ],
   "qaPairs": [
     {
-      "question": "Question classique d'examen ou de cours ?",
-      "answer": "Explication complète et accessible"
+      "question": "Question classique d'examen ?",
+      "answer": "Réponse complète et accessible"
     }
   ],
   "quiz": [
     {
-      "question": "Question de test ?",
+      "question": "Question de test de connaissances ?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
-      "explanation": "Explication étape par étape de la réponse"
+      "explanation": "Explication étape par étape de la bonne réponse"
     }
   ]
 }
 
-Contenu du cours à traiter :
-${courseText || 'Analyse la photo transmise.'}`;
+Demande / Recherche de l'élève en ${subject} :
+${courseText || 'Analyse l’image transmise.'}`;
 
     let contents: any[] = [prompt];
 
@@ -75,7 +76,6 @@ ${courseText || 'Analyse la photo transmise.'}`;
     let attempts = 0;
     const maxAttempts = 3;
 
-    // Tentatives répétées sur gemini-3.6-flash en cas de pic de charge
     while (attempts < maxAttempts && !responseText) {
       try {
         attempts++;
@@ -86,12 +86,10 @@ ${courseText || 'Analyse la photo transmise.'}`;
             responseMimeType: 'application/json',
           },
         });
-        if (response.text) {
-          responseText = response.text;
-        }
+        if (response.text) responseText = response.text;
       } catch (err: any) {
         if (attempts >= maxAttempts) throw err;
-        await new Promise((resolve) => setTimeout(resolve, 1500)); // Pause de 1.5s entre chaque essai
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
     }
 
@@ -103,7 +101,7 @@ ${courseText || 'Analyse la photo transmise.'}`;
   } catch (error: any) {
     console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: "Le modèle Gemini 3.6 est très sollicité. Veuillez réessayer dans quelques secondes." },
+      { error: "Le service Gemini 3.6 est temporairement sollicité. Veuillez réespayer." },
       { status: 503 }
     );
   }
