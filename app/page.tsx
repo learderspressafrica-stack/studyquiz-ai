@@ -37,16 +37,17 @@ export default function Page() {
   const [history, setHistory] = useState<any[]>([]);
   const [historyFilter, setHistoryFilter] = useState<string>('Toutes');
 
-  // Réponses utilisateur au quiz { [questionIndex]: optionIndex }
+  // Réponses utilisateur au quiz
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: number }>({});
 
+  // Chargement de l'historique local (Fonctionne Hors-ligne)
   useEffect(() => {
     const savedHistory = localStorage.getItem('samnote_history');
     if (savedHistory) {
       try {
         setHistory(JSON.parse(savedHistory));
       } catch (e) {
-        console.error('Erreur chargement historique', e);
+        console.error('Erreur lors du chargement de l\'historique', e);
       }
     }
   }, []);
@@ -106,6 +107,57 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Supprimer un élément spécifique de l'historique
+  const deleteHistoryItem = (idToDelete: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Évite d'ouvrir l'élément lors du clic sur supprimer
+    const updatedHistory = history.filter((item) => item.id !== idToDelete);
+    setHistory(updatedHistory);
+    localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
+  };
+
+  // Télécharger une fiche au format texte (.txt)
+  const downloadHistoryItem = (item: any, e: React.MouseEvent) => {
+    e.stopPropagation(); // Évite d'ouvrir l'élément lors du clic
+    const data = item.data;
+    
+    let content = `=========================================\n`;
+    content += `SAMNOTE - ${item.subject.toUpperCase()}\n`;
+    content += `Date: ${item.date}\n`;
+    content += `Titre: ${data.title}\n`;
+    content += `=========================================\n\n`;
+    content += `--- RESUME ---\n${data.summary}\n\n`;
+
+    if (data.conceptExplanations && data.conceptExplanations.length > 0) {
+      content += `--- NOTIONS CLES ---\n`;
+      data.conceptExplanations.forEach((c: any) => {
+        content += `• ${c.concept}: ${c.simpleDefinition}\n`;
+      });
+      content += `\n`;
+    }
+
+    if (data.quiz && data.quiz.length > 0) {
+      content += `--- QUIZ D'AUTO-EVALUATION ---\n`;
+      data.quiz.forEach((q: any, i: number) => {
+        content += `Q${i + 1}: ${q.question}\n`;
+        q.options.forEach((opt: string, optIdx: number) => {
+          content += `  ${String.fromCharCode(65 + optIdx)}) ${opt}\n`;
+        });
+        content += `  Réponse correcte: ${q.options[q.correctIndex]}\n`;
+        content += `  Explication: ${q.explanation}\n\n`;
+      });
+    }
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Samnote_${item.subject}_${item.id}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const speakAudio = (text: string) => {
@@ -234,17 +286,12 @@ export default function Page() {
             </div>
           </div>
         </div>
-
-        {/* Pied de sidebar - Propriété CSS corrigée */}
-        <div style={{ borderTop: '1px solid #1f2937', paddingTop: '12px', fontSize: '12px', color: '#64748b', textAlign: 'center' }}>
-          Propulsé par Gemini 3.6
-        </div>
       </aside>
 
-      {/* ZONE PRINCIPALE DE TRAVAIL (À DROITE) */}
+      {/* ZONE PRINCIPALE DE TRAVAIL */}
       <main style={{ flex: 1, padding: '24px 32px', overflowY: 'auto', maxWidth: '1200px', margin: '0 auto' }}>
         
-        {/* Barre de Recherche Intelligente */}
+        {/* Barre de Recherche */}
         <div style={{ backgroundColor: '#1e293b', padding: '12px 16px', borderRadius: '12px', display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px', border: '1px solid #334155' }}>
           <span style={{ fontSize: '18px' }}>🔍</span>
           <input
@@ -376,20 +423,27 @@ export default function Page() {
                   <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#cbd5e1', margin: 0 }}>{generatedData.summary}</p>
                 </div>
 
-                {/* Explications des Notions & Schémas */}
+                {/* Explications des Notions */}
                 {generatedData.conceptExplanations && generatedData.conceptExplanations.length > 0 && (
                   <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-                    <h3 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0, marginBottom: '14px' }}>💡 Notions Clés & Schémas Explicatifs</h3>
+                    <h3 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0, marginBottom: '14px' }}>💡 Notions Clés & Images Illustratives</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
                       {generatedData.conceptExplanations.map((item: any, idx: number) => (
                         <div key={idx} style={{ backgroundColor: '#0b0f19', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
                           <h4 style={{ color: '#facc15', margin: '0 0 6px 0', fontSize: '14px' }}>🔹 {item.concept}</h4>
                           <p style={{ fontSize: '13px', color: '#cbd5e1', margin: '0 0 10px 0', lineHeight: '1.4' }}>{item.simpleDefinition}</p>
-                          {item.diagram && (
-                            <pre style={{ backgroundColor: '#111827', color: '#38bdf8', padding: '10px', borderRadius: '6px', fontSize: '12px', overflowX: 'auto', margin: 0, border: '1px dashed #334155' }}>
-                              {item.diagram}
-                            </pre>
-                          )}
+                          
+                          <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                            <img
+                              src={`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(item.concept)}.jpg`}
+                              alt={item.concept}
+                              onError={(e: any) => {
+                                e.target.onerror = null;
+                                e.target.src = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=500&auto=format&fit=crop';
+                              }}
+                              style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #334155' }}
+                            />
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -409,7 +463,7 @@ export default function Page() {
                   </div>
                 )}
 
-                {/* QUIZ INTERACTIF DYNAMIQUE */}
+                {/* QUIZ INTERACTIF */}
                 {generatedData.quiz && (
                   <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -489,10 +543,10 @@ export default function Page() {
           </div>
         )}
 
-        {/* VUE HISTORIQUE FILTRABLE */}
+        {/* HISTORIQUE HORS-LIGNE AVEC BOUTONS SUPPRIMER ET TÉLÉCHARGER */}
         {activeTab === 'history' && (
           <div>
-            <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Recherches & Cours</h2>
+            <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Recherches & Cours (Disponible Hors-Ligne)</h2>
 
             <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '20px' }}>
               <button
@@ -535,7 +589,7 @@ export default function Page() {
             {filteredHistory.length === 0 ? (
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>Aucune recherche enregistrée pour la catégorie : {historyFilter}</p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
                 {filteredHistory.map((item: any) => (
                   <div
                     key={item.id}
@@ -551,17 +605,67 @@ export default function Page() {
                       borderRadius: '12px',
                       border: '1px solid #1f2937',
                       cursor: 'pointer',
-                      transition: '0.2s'
+                      transition: '0.2s',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
-                      <span style={{ fontSize: '11px', color: '#64748b' }}>{item.date}</span>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>{item.date}</span>
+                      </div>
+                      <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
+                      <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {item.data.summary}
+                      </p>
                     </div>
-                    <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
-                    <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                      {item.data.summary}
-                    </p>
+
+                    {/* BOUTONS D'ACTION : TÉLÉCHARGER ET SUPPRIMER */}
+                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #1e293b', paddingTop: '12px', marginTop: 'auto' }}>
+                      <button
+                        onClick={(e) => downloadHistoryItem(item, e)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 12px',
+                          backgroundColor: '#1e293b',
+                          color: '#38bdf8',
+                          border: '1px solid #334155',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        📥 Télécharger
+                      </button>
+
+                      <button
+                        onClick={(e) => deleteHistoryItem(item.id, e)}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#7f1d1d',
+                          color: '#fca5a5',
+                          border: '1px solid #991b1b',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        🗑️ Supprimer
+                      </button>
+                    </div>
+
                   </div>
                 ))}
               </div>
