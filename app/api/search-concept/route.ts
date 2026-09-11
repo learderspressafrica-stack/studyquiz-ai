@@ -9,32 +9,34 @@ export async function POST(req: Request) {
     const { query } = await req.json();
 
     if (!query) {
-      return NextResponse.json({ error: "Aucun terme de recherche fourni." }, { status: 400 });
+      return NextResponse.json({ error: "Aucun terme fourni." }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      generationConfig: { responseMimeType: 'application/json' },
-    });
+    const model = genAI.getGenerativeModel(
+      {
+        model: 'gemini-1.5-flash',
+        generationConfig: { responseMimeType: 'application/json' },
+      },
+      { apiVersion: 'v1' }
+    );
 
     const systemInstruction = `
 Tu es un dictionnaire technique et pédagogique pour Samnote.
-Pour le terme recherché, génère un JSON strict :
+Pour le terme recherché, génère un objet JSON strict :
 {
   "term": "${query}",
-  "definition": "Définition simple et précise...",
-  "howItWorks": "Explication étape par étape du fonctionnement...",
+  "definition": "Définition claire et accessible à un élève...",
+  "howItWorks": "Principe de fonctionnement détaillé étape par étape...",
   "characteristics": ["Caractéristique 1", "Caractéristique 2", "Caractéristique 3"],
-  "drawingInstructions": "Drawing of ${query}, formatted like a technical drawing/schema with labeled components, clean lines, realistic engineering style",
-  "imageUrl": "https://image.pollinations.ai/prompt/realistic%20technical%20drawing%20schema%20of%20${encodeURIComponent(query)}?width=800&height=500&nologo=true"
+  "imageUrl": "https://image.pollinations.ai/prompt/technical%20drawing%20schema%20of%20${encodeURIComponent(query)}?width=800&height=500&nologo=true"
 }
 `;
 
-    const result = await model.generateContent(`Recherche et analyse le terme : ${query}`);
-    const data = JSON.parse(result.response.text());
+    const result = await model.generateContent(`Recherche le concept : ${query}`);
+    const parsedData = JSON.parse(result.response.text());
 
-    return NextResponse.json(data);
+    return NextResponse.json(parsedData);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Erreur de recherche" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Erreur lors de la recherche" }, { status: 500 });
   }
 }

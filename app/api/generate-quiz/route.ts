@@ -22,29 +22,33 @@ export async function POST(req: Request) {
       );
     }
 
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
+    // Définition du modèle avec la version API 'v1' pour éviter les erreurs v1beta
+    const model = genAI.getGenerativeModel(
+      {
+        model: 'gemini-1.5-flash',
+        generationConfig: {
+          responseMimeType: 'application/json',
+        },
       },
-    });
+      { apiVersion: 'v1' }
+    );
 
     const systemInstruction = `
 Tu es un assistant pédagogique expert pour l'application Samnote.
-Analyse le document fourni et génère un objet JSON strict suivant cette structure exacte :
+Analyse le document/cours fourni et génère obligatoirement un objet JSON strict :
 {
-  "summary": "Explication claire, simple et accessible à un élève, avec des analogies si nécessaire...",
+  "summary": "Explication claire, simple et pédagogique du cours...",
   "qa": [
     {
-      "question": "Question fréquente ou clé sur le cours ?",
-      "answer": "Explication détaillée et pédagogique de la réponse."
+      "question": "Question clé sur le cours ?",
+      "answer": "Explication détaillée de la réponse."
     }
   ],
   "componentsToIllustrate": [
     {
-      "name": "Nom du composant ou système (ex: Moteur à explosion)",
-      "description": "Description technique et rôle du composant.",
-      "imagePrompt": "Technical diagram style drawing, clean engineering lines, clear annotations, realistic detail of [Nom du composant]"
+      "name": "Composant ou concept (ex: Diode)",
+      "description": "Fonctionnement et caractéristiques du composant.",
+      "imagePrompt": "Technical drawing of Diode, engineering blueprint style, clean labeled components, realistic schema"
     }
   ],
   "quiz": [
@@ -57,11 +61,14 @@ Analyse le document fourni et génère un objet JSON strict suivant cette struct
 }
 `;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nContenu à analyser :\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nContenu :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
-      return NextResponse.json({ error: "L'IA n'a pas retourné de réponse." }, { status: 500 });
+      return NextResponse.json(
+        { error: "L'IA n'a pas retourné de résultat." },
+        { status: 500 }
+      );
     }
 
     const parsedData = JSON.parse(responseText);
@@ -69,6 +76,9 @@ Analyse le document fourni et génère un objet JSON strict suivant cette struct
 
   } catch (error: any) {
     console.error("Erreur API Gemini:", error);
-    return NextResponse.json({ error: error.message || "Erreur serveur" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Erreur lors du traitement par l'IA" },
+      { status: 500 }
+    );
   }
 }
