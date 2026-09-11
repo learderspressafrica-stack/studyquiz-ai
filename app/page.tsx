@@ -28,7 +28,6 @@ interface SearchResult {
 }
 
 export default function SamnoteWorkspace() {
-  // Liste intégrale de vos matières
   const subjectsList = [
     'Électricité',
     'Électronique Analogique',
@@ -50,7 +49,6 @@ export default function SamnoteWorkspace() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Mémorisation par matière pour éviter le blocage / mélange de données
   const [subjectData, setSubjectData] = useState<Record<string, {
     summary?: string;
     qa?: QAItem[];
@@ -65,7 +63,7 @@ export default function SamnoteWorkspace() {
     setSearchResult(null);
   };
 
-  // Importation directe de Photo / PDF depuis le téléphone ou PC
+  // Importation directe de Photo / PDF depuis le téléphone ou le PC
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -81,7 +79,7 @@ export default function SamnoteWorkspace() {
     }
   };
 
-  // Génération du cours via l'API
+  // Envoi au backend Gemini
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
     setLoading(true);
@@ -115,7 +113,7 @@ export default function SamnoteWorkspace() {
     }
   };
 
-  // Moteur de recherche de concepts
+  // Moteur de recherche
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
@@ -157,7 +155,7 @@ export default function SamnoteWorkspace() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
       
-      {/* MENU LATÉRAL : MATIÈRES */}
+      {/* BARRE LATÉRALE : MATIÈRES */}
       <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-4 flex-shrink-0">
         <h1 className="text-xl font-bold text-blue-400 mb-6 flex items-center gap-2">
           ⚡ Samnote
@@ -207,7 +205,7 @@ export default function SamnoteWorkspace() {
           </button>
         </div>
 
-        {/* AFFICHAGE DES RÉSULTATS DE LA RECHERCHE */}
+        {/* RÉSULTAT DE LA RECHERCHE */}
         {searchResult && (
           <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-5 relative">
             <button 
@@ -254,7 +252,7 @@ export default function SamnoteWorkspace() {
           </section>
         )}
 
-        {/* SAISIE DU COURS & IMPORTATION DE FICHIER */}
+        {/* SAISIE & IMPORTATION DE FICHIERS */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <h2 className="text-md font-semibold text-slate-200 mb-2">
             Zone de Saisie & Importation — <span className="text-blue-400">{currentSubject}</span>

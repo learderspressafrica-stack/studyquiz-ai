@@ -22,10 +22,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Utilisation de gemini-2.5-flash sur l'API v1 stable
+    // Force la version API v1 et utilise l'identifiant valide du modèle Flash
     const model = genAI.getGenerativeModel(
       {
-        model: 'gemini-2.5-flash',
+        model: 'gemini-1.5-flash',
         generationConfig: {
           responseMimeType: 'application/json',
         },
@@ -61,7 +61,7 @@ Analyse le document fourni et réponds exclusivement sous la forme d'un objet JS
 }
 `;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nCours :\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nCours à analyser :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
