@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Forcer le runtime Node.js complet pour Vercel / Turbopack
 export const runtime = 'nodejs';
-
-// Import de pdf-parse
-const pdfParse = require('pdf-parse');
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +13,9 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // Chargement dynamique avec require pour contourner l'erreur TypeScript (ts2339)
+    const pdfParse = require('pdf-parse');
 
     // Extraction du texte
     const pdfData = await pdfParse(buffer);
