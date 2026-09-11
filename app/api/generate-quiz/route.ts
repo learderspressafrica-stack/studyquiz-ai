@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     if (!apiKey) {
       return NextResponse.json(
-        { error: "La clé GEMINI_API_KEY n'est pas configurée dans Vercel." },
+        { error: "La clé GEMINI_API_KEY n'est pas configurée." },
         { status: 500 }
       );
     }
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Configuration explicite sur Gemini 3.6 Flash
+    // Appel strict à Gemini 3.6 Flash via API v1
     const model = genAI.getGenerativeModel(
       {
         model: 'gemini-3.6-flash',
@@ -30,30 +30,30 @@ export async function POST(req: Request) {
           responseMimeType: 'application/json',
         },
       },
-      { apiVersion: 'v1' } // Force la version d'API v1 pour eviter l'erreur 404 sur v1beta
+      { apiVersion: 'v1' }
     );
 
     const systemInstruction = `
-Tu es un assistant pédagogique expert pour l'application Samnote.
-Analyse le document fourni et génère un objet JSON strict :
+Tu es un assistant pédagogique expert pour Samnote.
+Analyse le document/cours fourni et réponds exclusivement sous forme d'objet JSON respectant la structure suivante :
 {
-  "summary": "Explication claire et simple accessible à un élève...",
+  "summary": "Explication claire, simplifiée et pédagogique du cours...",
   "qa": [
     {
-      "question": "Question de compréhension importante ?",
-      "answer": "Réponse explicative simple et précise."
+      "question": "Question essentielle de compréhension ?",
+      "answer": "Réponse claire et explicative."
     }
   ],
   "componentsToIllustrate": [
     {
-      "name": "Nom du composant (ex: Diode ou Moto)",
-      "description": "Rôle et fonctionnement basique.",
-      "imagePrompt": "Technical engineering schema drawing of [name], isometric view, clean lines, clear component callouts, white background"
+      "name": "Nom du composant ou concept clé",
+      "description": "Explication du rôle ou fonctionnement.",
+      "imagePrompt": "Technical engineering schematic diagram of [name], clean lines, isometric style, labeled components, white background"
     }
   ],
   "quiz": [
     {
-      "question": "Question du quiz ?",
+      "question": "Question d'évaluation ?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0
     }
@@ -61,12 +61,12 @@ Analyse le document fourni et génère un objet JSON strict :
 }
 `;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nContenu :\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nCours à analyser :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
       return NextResponse.json(
-        { error: "L'IA n'a pas retourné de résultat." },
+        { error: "Gemini 3.6 n'a pas renvoyé de contenu." },
         { status: 500 }
       );
     }
@@ -75,7 +75,7 @@ Analyse le document fourni et génère un objet JSON strict :
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("Erreur API Gemini 3.6:", error);
+    console.error("Erreur Gemini 3.6:", error);
     return NextResponse.json(
       { error: error.message || "Erreur lors du traitement par Gemini 3.6" },
       { status: 500 }

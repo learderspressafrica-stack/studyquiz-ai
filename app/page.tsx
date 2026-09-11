@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface QuizItem {
   question: string;
@@ -27,14 +27,29 @@ interface SearchResult {
   imageUrl: string;
 }
 
-export default function WorkspacePage() {
+export default function SamnoteWorkspace() {
+  // Liste complète de toutes vos matières
+  const subjectsList = [
+    'Électricité',
+    'Électronique Analogique',
+    'Électronique Numérique',
+    'Mesures Électroniques',
+    'Automatisme',
+    'Technologie',
+    'Utilisation',
+    'TP (Travaux Pratiques)',
+    'Dessin Technique',
+    'Gestion',
+    'Droit'
+  ];
+
   const [currentSubject, setCurrentSubject] = useState<string>('Électricité');
   const [inputText, setInputText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Données par matière (empêche le blocage/mélange entre matières)
+  // Stockage indépendant des cours générés par matière
   const [subjectData, setSubjectData] = useState<Record<string, {
     summary?: string;
     qa?: QAItem[];
@@ -42,16 +57,15 @@ export default function WorkspacePage() {
     quiz?: QuizItem[];
   }>>({});
 
-  // Résultat de la barre de recherche
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
 
-  // 1. Vider la recherche et rafraîchir l'interface au changement de matière
+  // Changement de matière et remise à zéro de la recherche
   const handleSubjectChange = (subject: string) => {
     setCurrentSubject(subject);
-    setSearchResult(null); // Réinitialise la recherche lors du changement d'onglet
+    setSearchResult(null);
   };
 
-  // 2. Génération de Fiche, Quiz, Q&R et Audio
+  // Traitement du cours avec Gemini 3.6
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
     setLoading(true);
@@ -76,16 +90,16 @@ export default function WorkspacePage() {
           }
         }));
       } else {
-        alert(data.error || "Une erreur est survenue.");
+        alert(data.error || "Erreur de génération avec Gemini 3.6.");
       }
     } catch (err) {
-      alert("Erreur de connexion au serveur.");
+      alert("Erreur de communication avec le serveur.");
     } finally {
       setLoading(false);
     }
   };
 
-  // 3. Recherche de concept (avec Définition, Fonctionnement, Caractéristiques et Image)
+  // Recherche explicative
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
@@ -98,11 +112,10 @@ export default function WorkspacePage() {
       });
 
       const data = await res.json();
-
       if (res.ok) {
         setSearchResult(data);
       } else {
-        alert(data.error || "Impossible d'effectuer la recherche.");
+        alert(data.error || "Impossible d'exécuter la recherche.");
       }
     } catch (err) {
       alert("Erreur lors de la recherche.");
@@ -111,19 +124,30 @@ export default function WorkspacePage() {
     }
   };
 
+  // Fonction d'exportation PDF / Impression
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   const currentData = subjectData[currentSubject] || {};
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
       
-      {/* BARRE LATÉRALE - Matières (Responsive Mobile / PC) */}
-      <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-4">
+      {/* BARRE LATÉRALE : MATIÈRES */}
+      <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-4 flex-shrink-0">
         <h1 className="text-xl font-bold text-blue-400 mb-6 flex items-center gap-2">
           ⚡ Samnote
         </h1>
+        
+        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Espace de travail</p>
+        <button className="w-full text-left px-3 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-sm mb-4 font-medium border border-blue-500/30">
+          📁 Espace de Travail
+        </button>
+
         <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières</p>
-        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0">
-          {['Électricité', 'Électronique Analogique', 'Électronique Numérique', 'Technologie', 'Automatisme'].map((sub) => (
+        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 max-h-[60vh] md:max-h-none overflow-y-auto">
+          {subjectsList.map((sub) => (
             <button
               key={sub}
               onClick={() => handleSubjectChange(sub)}
@@ -133,20 +157,20 @@ export default function WorkspacePage() {
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              {sub}
+              📂 {sub}
             </button>
           ))}
         </div>
       </aside>
 
-      {/* CONTENU PRINCIPAL */}
+      {/* ZONE PRINCIPALE DE CONTENU */}
       <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
         
-        {/* BARRE DE RECHERCHE */}
+        {/* BARRE DE RECHERCHE ET BOUTONS EXPORT */}
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
-            placeholder={`Rechercher un composant ou un mot dans ${currentSubject}...`}
+            placeholder={`Rechercher dans ${currentSubject}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
@@ -154,22 +178,28 @@ export default function WorkspacePage() {
           <button
             onClick={handleSearch}
             disabled={searchLoading}
-            className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg text-sm font-medium transition-colors"
           >
             {searchLoading ? 'Recherche...' : 'Rechercher'}
           </button>
+          <button
+            onClick={handleExportPDF}
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+          >
+            📷 Exporter Photo / PDF
+          </button>
         </div>
 
-        {/* AFFICHAGE DES RÉSULTATS DE RECHERCHE */}
+        {/* FICHE DE RECHERCHE AVEC IMAGE */}
         {searchResult && (
-          <section className="bg-slate-900 border border-blue-500/30 rounded-xl p-5 relative">
+          <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-5 relative">
             <button 
               onClick={() => setSearchResult(null)}
               className="absolute top-3 right-3 text-slate-400 hover:text-white"
             >
               ✕
             </button>
-            <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Fiche : {searchResult.term}</h2>
+            <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Résultat : {searchResult.term}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
               <div className="space-y-3">
@@ -193,10 +223,9 @@ export default function WorkspacePage() {
                 )}
               </div>
 
-              {/* DESSIN TECHNIQUE REALISTE */}
               {searchResult.imageUrl && (
                 <div className="flex flex-col items-center">
-                  <span className="text-xs text-slate-400 mb-1">Schéma technique & Dessin</span>
+                  <span className="text-xs text-slate-400 mb-1">Schéma / Dessin Technique</span>
                   <img
                     src={searchResult.imageUrl}
                     alt={searchResult.term}
@@ -208,44 +237,44 @@ export default function WorkspacePage() {
           </section>
         )}
 
-        {/* ZONE DE SAISIE ET GÉNÉRATION DE COURS */}
+        {/* SAISIE DU COURS DE LA MATIÈRE ACTUELLE */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <h2 className="text-md font-semibold text-slate-200 mb-2">
-            Zone de Saisie & Importation ({currentSubject})
+            Zone de Saisie & Importation — <span className="text-blue-400">{currentSubject}</span>
           </h2>
           <textarea
             rows={5}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={`Saisissez ou collez votre cours de ${currentSubject} ici...`}
+            placeholder={`Saisissez le cours ou collez le texte de ${currentSubject} ici...`}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
           />
           <div className="flex justify-end mt-3">
             <button
               onClick={handleGenerate}
               disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
-              {loading ? 'Analyse par Gemini 3.6...' : 'Générer Fiche, Q&R, Audio & Quiz'}
+              {loading ? 'Analyse Gemini 3.6 en cours...' : 'Générer avec Gemini 3.6'}
             </button>
           </div>
         </section>
 
-        {/* AFFICHAGE DU RÉSUMÉ / EXPLICATION SIMPLIFIÉE */}
+        {/* EXPLICATION & RÉSUMÉ SIMPLIFIÉ */}
         {currentData.summary && (
           <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <h2 className="text-lg font-bold text-emerald-400 mb-2">📘 Explication & Résumé Simplifié</h2>
+            <h2 className="text-lg font-bold text-emerald-400 mb-2">📘 Résumé & Explication ({currentSubject})</h2>
             <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">
               {currentData.summary}
             </p>
           </section>
         )}
 
-        {/* AFFICHAGE DES QUESTIONS / RÉPONSES (Q&A) */}
+        {/* QUESTIONS - RÉPONSES (Q&A) */}
         {currentData.qa && currentData.qa.length > 0 && (
           <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <h2 className="text-lg font-bold text-purple-400 mb-4">❓ Questions - Réponses Pédagogiques</h2>
-            <div className="space-y-4">
+            <h2 className="text-lg font-bold text-purple-400 mb-4">❓ Questions & Réponses ({currentSubject})</h2>
+            <div className="space-y-3">
               {currentData.qa.map((item, idx) => (
                 <div key={idx} className="bg-slate-950 p-4 rounded-lg border border-slate-800">
                   <p className="text-sm font-semibold text-purple-300">Q: {item.question}</p>
@@ -256,10 +285,10 @@ export default function WorkspacePage() {
           </section>
         )}
 
-        {/* SCHÉMAS TECHNIQUES ASSOCIÉS AU COURS */}
+        {/* DESSINS TECHNIQUES & SCHÉMAS */}
         {currentData.illustrations && currentData.illustrations.length > 0 && (
           <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <h2 className="text-lg font-bold text-amber-400 mb-4">🎨 Dessins Techniques & Composants</h2>
+            <h2 className="text-lg font-bold text-amber-400 mb-4">🎨 Dessins Techniques ({currentSubject})</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {currentData.illustrations.map((item, idx) => (
                 <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
@@ -276,10 +305,10 @@ export default function WorkspacePage() {
           </section>
         )}
 
-        {/* AFFICHAGE DU QUIZ */}
+        {/* QUIZ D'ÉVALUATION */}
         {currentData.quiz && currentData.quiz.length > 0 && (
           <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-            <h2 className="text-lg font-bold text-blue-400 mb-4">📝 Quiz d'évaluation</h2>
+            <h2 className="text-lg font-bold text-blue-400 mb-4">📝 Quiz ({currentSubject})</h2>
             <div className="space-y-4">
               {currentData.quiz.map((q, idx) => (
                 <div key={idx} className="bg-slate-950 p-4 rounded-lg border border-slate-800">
