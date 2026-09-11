@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     if (!apiKey) {
       return NextResponse.json(
-        { error: "La clé GEMINI_API_KEY n'est pas définie sur le serveur." },
+        { error: "La clé GEMINI_API_KEY est manquante dans les variables Vercel." },
         { status: 500 }
       );
     }
@@ -22,34 +22,36 @@ export async function POST(req: Request) {
       );
     }
 
-    // Utilisation du modèle gemini-1.5-flash avec instruction JSON
+    // Utilisation du modèle officiel gemini-1.5-flash
     const model = genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
-      generationConfig: { responseMimeType: 'application/json' },
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
     });
 
     const systemInstruction = `
-    Tu es un assistant pédagogique pour l'application Samnote.
-    Analyse le contenu fourni et génère un objet JSON strict au format suivant :
+Tu es un assistant pédagogique pour l'application Samnote.
+Analyse le texte fourni et génère obligatoirement un objet JSON strict :
+{
+  "summary": "Résumé synthétique du cours...",
+  "componentsToIllustrate": ["Composant 1", "Composant 2"],
+  "quiz": [
     {
-      "summary": "Résumé clair et synthétique du cours...",
-      "componentsToIllustrate": ["Composant 1", "Composant 2"],
-      "quiz": [
-        {
-          "question": "Question 1 ?",
-          "options": ["Option A", "Option B", "Option C", "Option D"],
-          "correctIndex": 0
-        }
-      ]
+      "question": "Question du quiz ?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctIndex": 0
     }
-    `;
+  ]
+}
+`;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nContenu:\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nContenu :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
       return NextResponse.json(
-        { error: "L'IA n'a pas retourné de réponse." },
+        { error: "L'IA n'a pas retourné de résultat." },
         { status: 500 }
       );
     }
@@ -60,7 +62,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("Erreur API Gemini:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur interne du serveur" },
+      { error: error.message || "Erreur lors du traitement Gemini" },
       { status: 500 }
     );
   }
