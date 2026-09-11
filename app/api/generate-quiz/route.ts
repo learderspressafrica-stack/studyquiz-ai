@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
+// Modèle fixé sur gemini-3.6-flash
+const MODEL_NAME = 'gemini-3.6-flash';
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -68,25 +71,40 @@ ${courseText || 'Analyse la photo transmise.'}`;
       });
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
-      contents: contents,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    let responseText = '';
+    let attempts = 0;
+    const maxAttempts = 3;
 
-    let rawText = response.text || '';
-    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Tentatives répétées sur gemini-3.6-flash en cas de pic de charge
+    while (attempts < maxAttempts && !responseText) {
+      try {
+        attempts++;
+        const response = await ai.models.generateContent({
+          model: MODEL_NAME,
+          contents: contents,
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+        if (response.text) {
+          responseText = response.text;
+        }
+      } catch (err: any) {
+        if (attempts >= maxAttempts) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 1500)); // Pause de 1.5s entre chaque essai
+      }
+    }
 
+    let rawText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedData = JSON.parse(rawText);
+
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
     console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erreur lors de la génération.' },
-      { status: 500 }
+      { error: "Le modèle Gemini 3.6 est très sollicité. Veuillez réessayer dans quelques secondes." },
+      { status: 503 }
     );
   }
 }
