@@ -15,33 +15,42 @@ export async function POST(req: Request) {
       );
     }
 
-    const subject = userProfile?.subject || 'Électronique Générale';
+    const subject = userProfile?.subject || 'Électronique';
 
-    const prompt = `Tu es un professeur expert en Électronique. Fais une analyse complète pour la matière suivante : ${subject}.
+    const prompt = `Tu es un professeur d'Électronique passionné et très pédagogue.
+Ton objectif est de simplifier le cours pour qu'un élève puisse tout comprendre facilement.
 
-Génère un objet JSON valide avec cette structure exacte :
+Matière : ${subject}
+
+Génère un objet JSON valide suivant exactement cette structure :
 {
-  "title": "Titre explicatif de la leçon d'électronique",
-  "summary": "Résumé concis avec les formules clés, schémas ou règles essentielles de ${subject}",
-  "audioScript": "Explication orale claire de la leçon",
+  "title": "Titre explicatif clair du cours",
+  "summary": "Résumé simple et concis avec les notions fondamentales",
+  "audioScript": "Texte dynamique et pédagogique à lire à voix haute",
+  "conceptExplanations": [
+    {
+      "concept": "Nom du composant ou de la notion (ex: Transistor, Diode, Bilan de comptabilité)",
+      "simpleDefinition": "Explication très simple, comme si tu l'expliquais à un débutant",
+      "diagram": "Un schéma visuel explicatif simplifié sous forme de dessin ASCII ou texte (ex: [ Base -> Collecteur -> Émetteur ])"
+    }
+  ],
   "qaPairs": [
     {
-      "question": "Question classique d'examen en ${subject} ?",
-      "answer": "Réponse détaillée"
+      "question": "Question classique d'examen ou de cours ?",
+      "answer": "Explication complète et accessible"
     }
   ],
   "quiz": [
     {
-      "question": "Question 1 de test ?",
+      "question": "Question de test ?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0,
-      "explanation": "Explication technique"
+      "explanation": "Explication étape par étape de la réponse"
     }
   ]
 }
 
-Matière : ${subject}
-Contenu transmis par l'élève :
+Contenu du cours à traiter :
 ${courseText || 'Analyse la photo transmise.'}`;
 
     let contents: any[] = [prompt];
@@ -76,7 +85,7 @@ ${courseText || 'Analyse la photo transmise.'}`;
   } catch (error: any) {
     console.error('Erreur Backend:', error);
     return NextResponse.json(
-      { error: error?.message || 'Erreur de génération.' },
+      { error: error?.message || 'Erreur lors de la génération.' },
       { status: 500 }
     );
   }
