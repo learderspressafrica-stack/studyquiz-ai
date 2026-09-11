@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 
+// Configuration du lecteur PDF
+import * as pdfjsLib from 'pdfjs-dist';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 interface Matiere {
   id: string;
   name: string;
@@ -21,37 +25,92 @@ const MATIERES: Matiere[] = [
 
 export default function Page() {
   const [selectedSubject, setSelectedSubject] = useState<string>(MATIERES[0].name);
-  const [activeTab, setActiveTab] = useState<'generate' | 'search' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'search' | 'homework' | 'history'>('generate');
   
-  // Saisie texte & photo
+  // Saisie texte, photo & PDF
   const [courseText, setCourseText] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [imageFile, setImageFile] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string>('');
   
+  // Modération & Références Devoirs
+  const [homeworkRefs, setHomeworkRefs] = useState<{ [subject: string]: string }>({});
+  const [currentRefText, setCurrentRefText] = useState<string>('');
+
   // États de chargement et résultats
   const [loading, setLoading] = useState<boolean>(false);
   const [generatedData, setGeneratedData] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
   
-  // Historique & Filtres
+  // Historique
   const [history, setHistory] = useState<any[]>([]);
   const [historyFilter, setHistoryFilter] = useState<string>('Toutes');
 
   // Réponses utilisateur au quiz
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: number }>({});
 
-  // Chargement de l'historique local (Fonctionne Hors-ligne)
   useEffect(() => {
+    // Charger l'historique
     const savedHistory = localStorage.getItem('samnote_history');
     if (savedHistory) {
-      try {
-        setHistory(JSON.parse(savedHistory));
-      } catch (e) {
-        console.error('Erreur lors du chargement de l\'historique', e);
-      }
+      try { setHistory(JSON.parse(savedHistory)); } catch (e) {}
+    }
+    // Charger les références de devoirs
+    const savedRefs = localStorage.getItem('samnote_hw_refs');
+    if (savedRefs) {
+      try { setHomeworkRefs(JSON.parse(savedRefs)); } catch (e) {}
     }
   }, []);
 
+  // Mettre à jour le champ de référence quand la matière change
+  useEffect(() => {
+    setCurrentRefText(homeworkRefs[selectedSubject] || '');
+  }, [selectedSubject, homeworkRefs]);
+
+  // Sauvegarder la référence/sujet de devoir pour la matière active
+  const saveHomeworkRef = () => {
+    const updated = { ...homeworkRefs, [selectedSubject]: currentRefText };
+    setHomeworkRefs(updated);
+    localStorage.setItem('samnote_hw_refs', JSON.stringify(updated));
+    alert(`Références de devoirs enregistrées pour : ${selectedSubject}`);
+  };
+
+  // Importation et extraction de texte depuis un fichier PDF
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+      setErrorMsg('Veuillez sélectionner un fichier au format PDF.');
+      return;
+    }
+
+    setPdfFileName(file.name);
+    setLoading(true);
+    setErrorMsg('');
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = '';
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str).join(' ');
+        fullText += `\n--- Page ${i} ---\n` + pageText;
+      }
+
+      setCourseText((prev) => prev + `\n\n[Contenu extrait du PDF : ${file.name}]\n` + fullText);
+    } catch (err: any) {
+      setErrorMsg('Erreur lors de la lecture du fichier PDF.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Importation d'une image
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -61,12 +120,26 @@ export default function Page() {
     }
   };
 
-  // Traitement Génération / Recherche
-  const handleProcess = async (mode: 'generate' | 'search') => {
-    const textToSubmit = mode === 'search' ? searchQuery : courseText;
-    
+  // Traitement Génération / Recherche / Devoir Hebdomadaire
+  const handleProcess = async (mode: 'generate' | 'search' | 'weekly_exam') => {
+    let textToSubmit = courseText;
+
+    if (mode === 'search') {
+      textToSubmit = searchQuery;
+    } else if (mode === 'weekly_exam') {
+      // Rassemblement de l'historique de la semaine pour la matière active
+      const subjectHistory = history.filter((h) => h.subject === selectedSubject);
+      if (subjectHistory.length === 0) {
+        setErrorMsg(`Aucun cours enregistré dans l'historique pour ${selectedSubject} afin de générer le devoir hebdomadaire.`);
+        return;
+      }
+      const summaries = subjectHistory.map((h) => h.data.summary).join('\n---\n');
+      const refs = homeworkRefs[selectedSubject] || '';
+      textToSubmit = `Génère un Devoir Bilan Hebdomadaire de synthèse pour la matière : ${selectedSubject}.\n\nVoici le résumé des leçons vues cette semaine :\n${summaries}\n\nVoici le style et les types de sujet de référence à respecter :\n${refs}`;
+    }
+
     if (!textToSubmit && !imageFile) {
-      setErrorMsg('Veuillez entrer une question/recherche ou joindre un cours.');
+      setErrorMsg('Veuillez entrer du texte, importer un PDF/Image ou avoir un historique de cours.');
       return;
     }
 
@@ -101,7 +174,7 @@ export default function Page() {
       localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
 
       setGeneratedData(data);
-      if (mode === 'search') setActiveTab('generate');
+      if (mode === 'search' || mode === 'weekly_exam') setActiveTab('generate');
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -109,64 +182,63 @@ export default function Page() {
     }
   };
 
-  // Supprimer un élément spécifique de l'historique
+  // Supprimer un élément de l'historique
   const deleteHistoryItem = (idToDelete: number, e: React.MouseEvent) => {
-    e.stopPropagation(); // Évite d'ouvrir l'élément lors du clic sur supprimer
+    e.stopPropagation();
     const updatedHistory = history.filter((item) => item.id !== idToDelete);
     setHistory(updatedHistory);
     localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
   };
 
-  // Télécharger une fiche au format texte (.txt)
-  const downloadHistoryItem = (item: any, e: React.MouseEvent) => {
-    e.stopPropagation(); // Évite d'ouvrir l'élément lors du clic
+  // Exporter en PDF (Impression)
+  const exportToPDF = (item: any, e: React.MouseEvent) => {
+    e.stopPropagation();
     const data = item.data;
-    
-    let content = `=========================================\n`;
-    content += `SAMNOTE - ${item.subject.toUpperCase()}\n`;
-    content += `Date: ${item.date}\n`;
-    content += `Titre: ${data.title}\n`;
-    content += `=========================================\n\n`;
-    content += `--- RESUME ---\n${data.summary}\n\n`;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
 
-    if (data.conceptExplanations && data.conceptExplanations.length > 0) {
-      content += `--- NOTIONS CLES ---\n`;
-      data.conceptExplanations.forEach((c: any) => {
-        content += `• ${c.concept}: ${c.simpleDefinition}\n`;
-      });
-      content += `\n`;
-    }
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Samnote - ${data.title}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; color: #111; line-height: 1.5; }
+          h1 { color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 8px; }
+          h2 { color: #1e293b; margin-top: 20px; border-bottom: 1px solid #ccc; }
+          .badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+          .quiz-item { background: #f8fafc; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #e2e8f0; }
+          .correct { color: #15803d; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div><span class="badge">${item.subject}</span> &nbsp; <small>Date: ${item.date}</small></div>
+        <h1>${data.title}</h1>
+        <h2>📌 Synthèse</h2>
+        <p>${data.summary}</p>
+    `;
 
     if (data.quiz && data.quiz.length > 0) {
-      content += `--- QUIZ D'AUTO-EVALUATION ---\n`;
+      htmlContent += `<h2>🎯 Devoir / Quiz & Explications</h2>`;
       data.quiz.forEach((q: any, i: number) => {
-        content += `Q${i + 1}: ${q.question}\n`;
-        q.options.forEach((opt: string, optIdx: number) => {
-          content += `  ${String.fromCharCode(65 + optIdx)}) ${opt}\n`;
-        });
-        content += `  Réponse correcte: ${q.options[q.correctIndex]}\n`;
-        content += `  Explication: ${q.explanation}\n\n`;
+        htmlContent += `
+          <div class="quiz-item">
+            <p><strong>Q${i + 1}. ${q.question}</strong></p>
+            <ul>
+              ${q.options.map((opt: string, idx: number) => `<li class="${idx === q.correctIndex ? 'correct' : ''}">${opt} ${idx === q.correctIndex ? '✓' : ''}</li>`).join('')}
+            </ul>
+            <p><small><em>Explication: ${q.explanation}</em></small></p>
+          </div>
+        `;
       });
     }
 
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Samnote_${item.subject}_${item.id}.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
+    htmlContent += `</body></html>`;
 
-  const speakAudio = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'fr-FR';
-      window.speechSynthesis.speak(utterance);
-    }
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 500);
   };
 
   const handleOptionSelect = (qIndex: number, oIndex: number) => {
@@ -190,7 +262,7 @@ export default function Page() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0b0f19', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* SIDEBAR LATÉRALE À GAUCHE */}
+      {/* SIDEBAR LATÉRALE */}
       <aside style={{
         width: '280px',
         backgroundColor: '#111827',
@@ -202,7 +274,6 @@ export default function Page() {
         flexShrink: 0
       }}>
         <div>
-          {/* Logo App */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
             <div style={{ backgroundColor: '#0284c7', padding: '8px 12px', borderRadius: '10px', fontSize: '18px', fontWeight: 'bold' }}>⚡</div>
             <div>
@@ -211,7 +282,6 @@ export default function Page() {
             </div>
           </div>
 
-          {/* Navigation Principale */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '24px' }}>
             <button
               onClick={() => setActiveTab('generate')}
@@ -232,6 +302,27 @@ export default function Page() {
             >
               🚀 Workspace & Cours
             </button>
+
+            <button
+              onClick={() => setActiveTab('homework')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: activeTab === 'homework' ? '#1e293b' : 'transparent',
+                color: activeTab === 'homework' ? '#38bdf8' : '#94a3b8',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                cursor: 'pointer',
+                textAlign: 'left'
+              }}
+            >
+              📝 Devoirs & Références
+            </button>
+
             <button
               onClick={() => setActiveTab('history')}
               style={{
@@ -253,12 +344,11 @@ export default function Page() {
             </button>
           </nav>
 
-          {/* Sélecteur de Matière */}
           <div>
             <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', letterSpacing: '0.05em', display: 'block', marginBottom: '10px' }}>
               Matière Active
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '320px', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '300px', overflowY: 'auto' }}>
               {MATIERES.map((m: Matiere) => (
                 <button
                   key={m.id}
@@ -288,63 +378,27 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* ZONE PRINCIPALE DE TRAVAIL */}
+      {/* ZONE PRINCIPALE */}
       <main style={{ flex: 1, padding: '24px 32px', overflowY: 'auto', maxWidth: '1200px', margin: '0 auto' }}>
         
-        {/* Barre de Recherche */}
-        <div style={{ backgroundColor: '#1e293b', padding: '12px 16px', borderRadius: '12px', display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '24px', border: '1px solid #334155' }}>
-          <span style={{ fontSize: '18px' }}>🔍</span>
-          <input
-            type="text"
-            placeholder={`Rechercher ou poser une question ciblée sur : ${selectedSubject}...`}
-            value={searchQuery}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleProcess('search')}
-            style={{
-              flex: 1,
-              backgroundColor: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: '#fff',
-              fontSize: '14px'
-            }}
-          />
-          <button
-            onClick={() => handleProcess('search')}
-            disabled={loading}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#0284c7',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              cursor: 'pointer'
-            }}
-          >
-            Rechercher
-          </button>
-        </div>
-
+        {/* TAB WORKSPACE */}
         {activeTab === 'generate' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            {/* Boîte de Saisie */}
             <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h2 style={{ fontSize: '16px', color: '#38bdf8', margin: 0, fontWeight: 'bold' }}>
-                  📥 Saisie de Cours ou Devoir ({selectedSubject})
+                  📥 Saisie de Cours / Importation PDF / Photo ({selectedSubject})
                 </h2>
               </div>
 
               <textarea
-                placeholder={`Collez ici votre cours, une leçon ou une question technique en ${selectedSubject}...`}
+                placeholder={`Collez ici votre cours, ou chargez un fichier PDF/Photo ci-dessous...`}
                 value={courseText}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCourseText(e.target.value)}
                 style={{
                   width: '100%',
-                  height: '120px',
+                  height: '140px',
                   backgroundColor: '#0b0f19',
                   color: '#f8fafc',
                   border: '1px solid #334155',
@@ -358,6 +412,22 @@ export default function Page() {
               />
 
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                
+                {/* IMPORTATION PDF */}
+                <label style={{
+                  padding: '10px 16px',
+                  backgroundColor: '#0284c7',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: '#fff',
+                  fontWeight: 'bold'
+                }}>
+                  📄 Importer un PDF
+                  <input type="file" accept="application/pdf" onChange={handlePdfUpload} style={{ display: 'none' }} />
+                </label>
+
+                {/* IMPORTATION PHOTO */}
                 <label style={{
                   padding: '10px 16px',
                   backgroundColor: '#1e293b',
@@ -368,10 +438,11 @@ export default function Page() {
                   color: '#e2e8f0',
                   fontWeight: '500'
                 }}>
-                  📷 Importer photo du cours
+                  📷 Importer une Photo
                   <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
                 </label>
 
+                {pdfFileName && <span style={{ fontSize: '12px', color: '#38bdf8' }}>📄 {pdfFileName} chargé</span>}
                 {imageFile && <span style={{ fontSize: '12px', color: '#4ade80' }}>✓ Photo jointe</span>}
 
                 <button
@@ -380,7 +451,7 @@ export default function Page() {
                   style={{
                     marginLeft: 'auto',
                     padding: '12px 24px',
-                    backgroundColor: loading ? '#64748b' : '#0284c7',
+                    backgroundColor: loading ? '#64748b' : '#10b981',
                     color: '#fff',
                     border: 'none',
                     borderRadius: '8px',
@@ -389,7 +460,7 @@ export default function Page() {
                     cursor: loading ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {loading ? 'Analyse & Génération...' : '⚡ Générer la Fiche & Quiz'}
+                  {loading ? 'Analyse en cours...' : '⚡ Générer la Fiche & Quiz'}
                 </button>
               </div>
             </div>
@@ -400,77 +471,24 @@ export default function Page() {
               </div>
             )}
 
-            {/* RÉSULTATS GÉNÉRÉS */}
+            {/* FICHE GÉNÉRÉE ET QUIZ */}
             {generatedData && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
-                {/* Résumé & Synthèse Vocale */}
                 <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '12px', backgroundColor: '#0284c7', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
-                      {selectedSubject}
-                    </span>
-                    {generatedData.audioScript && (
-                      <button
-                        onClick={() => speakAudio(generatedData.audioScript)}
-                        style={{ padding: '6px 14px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
-                      >
-                        🔊 Écouter l'explication audio
-                      </button>
-                    )}
-                  </div>
-                  <h3 style={{ fontSize: '18px', color: '#f8fafc', margin: '0 0 10px 0' }}>{generatedData.title}</h3>
+                  <span style={{ fontSize: '12px', backgroundColor: '#0284c7', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
+                    {selectedSubject}
+                  </span>
+                  <h3 style={{ fontSize: '18px', color: '#f8fafc', margin: '10px 0' }}>{generatedData.title}</h3>
                   <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#cbd5e1', margin: 0 }}>{generatedData.summary}</p>
                 </div>
 
-                {/* Explications des Notions */}
-                {generatedData.conceptExplanations && generatedData.conceptExplanations.length > 0 && (
-                  <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-                    <h3 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0, marginBottom: '14px' }}>💡 Notions Clés & Images Illustratives</h3>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px' }}>
-                      {generatedData.conceptExplanations.map((item: any, idx: number) => (
-                        <div key={idx} style={{ backgroundColor: '#0b0f19', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
-                          <h4 style={{ color: '#facc15', margin: '0 0 6px 0', fontSize: '14px' }}>🔹 {item.concept}</h4>
-                          <p style={{ fontSize: '13px', color: '#cbd5e1', margin: '0 0 10px 0', lineHeight: '1.4' }}>{item.simpleDefinition}</p>
-                          
-                          <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                            <img
-                              src={`https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(item.concept)}.jpg`}
-                              alt={item.concept}
-                              onError={(e: any) => {
-                                e.target.onerror = null;
-                                e.target.src = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=500&auto=format&fit=crop';
-                              }}
-                              style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #334155' }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Questions & Réponses Directes */}
-                {generatedData.qaPairs && (
-                  <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-                    <h3 style={{ fontSize: '16px', color: '#38bdf8', marginTop: 0, marginBottom: '14px' }}>❓ Questions / Réponses d'Examen</h3>
-                    {generatedData.qaPairs.map((item: any, idx: number) => (
-                      <div key={idx} style={{ marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #1e293b' }}>
-                        <p style={{ fontWeight: 'bold', fontSize: '14px', color: '#f8fafc', margin: '0 0 4px 0' }}>Q{idx + 1}. {item.question}</p>
-                        <p style={{ fontSize: '13px', color: '#4ade80', margin: 0 }}>R: {item.answer}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* QUIZ INTERACTIF */}
                 {generatedData.quiz && (
                   <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>🎯 Quiz Interactif d'Auto-Évaluation</h3>
+                      <h3 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>🎯 Devoir & Évaluation</h3>
                       {Object.keys(userAnswers).length === generatedData.quiz.length && (
-                        <span style={{ backgroundColor: '#0284c7', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>
-                          Score: {calculateScore()} / {generatedData.quiz.length}
+                        <span style={{ backgroundColor: '#0284c7', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: 'bold' }}>
+                          Note: {calculateScore()} / {generatedData.quiz.length}
                         </span>
                       )}
                     </div>
@@ -482,25 +500,16 @@ export default function Page() {
                       return (
                         <div key={qIdx} style={{ marginBottom: '16px', backgroundColor: '#0b0f19', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
                           <p style={{ fontWeight: 'bold', fontSize: '14px', color: '#f8fafc', margin: '0 0 12px 0' }}>
-                            {qIdx + 1}. {q.question}
+                            Q{qIdx + 1}. {q.question}
                           </p>
-
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {q.options.map((opt: string, oIdx: number) => {
                               let bgColor = '#1e293b';
-                              let borderColor = 'transparent';
                               let textColor = '#e2e8f0';
 
                               if (isAnswered) {
-                                if (oIdx === q.correctIndex) {
-                                  bgColor = selectedOpt === q.correctIndex ? '#15803d' : '#ca8a04';
-                                  borderColor = '#22c55e';
-                                  textColor = '#ffffff';
-                                } else if (oIdx === selectedOpt) {
-                                  bgColor = '#991b1b';
-                                  borderColor = '#ef4444';
-                                  textColor = '#ffffff';
-                                }
+                                if (oIdx === q.correctIndex) bgColor = '#15803d';
+                                else if (oIdx === selectedOpt) bgColor = '#991b1b';
                               }
 
                               return (
@@ -512,13 +521,11 @@ export default function Page() {
                                     textAlign: 'left',
                                     padding: '12px',
                                     backgroundColor: bgColor,
-                                    border: `2px solid ${borderColor}`,
+                                    border: 'none',
                                     borderRadius: '8px',
                                     fontSize: '13px',
                                     color: textColor,
-                                    cursor: isAnswered ? 'default' : 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    fontWeight: isAnswered && (oIdx === q.correctIndex || oIdx === selectedOpt) ? 'bold' : 'normal'
+                                    cursor: isAnswered ? 'default' : 'pointer'
                                   }}
                                 >
                                   {opt}
@@ -526,155 +533,116 @@ export default function Page() {
                               );
                             })}
                           </div>
-
                           {isAnswered && (
-                            <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#111827', borderRadius: '6px', fontSize: '13px', color: '#cbd5e1', borderLeft: '3px solid #38bdf8' }}>
-                              <strong>💡 Explication :</strong> {q.explanation}
-                            </div>
+                            <p style={{ marginTop: '10px', fontSize: '12px', color: '#cbd5e1' }}>💡 Explication: {q.explanation}</p>
                           )}
                         </div>
                       );
                     })}
                   </div>
                 )}
-
               </div>
             )}
           </div>
         )}
 
-        {/* HISTORIQUE HORS-LIGNE AVEC BOUTONS SUPPRIMER ET TÉLÉCHARGER */}
-        {activeTab === 'history' && (
-          <div>
-            <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Recherches & Cours (Disponible Hors-Ligne)</h2>
+        {/* TAB DEVOIRS DE RÉFÉRENCE & DEVOIR HEBDOMADAIRE */}
+        {activeTab === 'homework' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
+              <h2 style={{ fontSize: '18px', color: '#38bdf8', marginTop: 0, marginBottom: '8px' }}>
+                📝 Devoirs de Référence pour : <span style={{ color: '#fff' }}>{selectedSubject}</span>
+              </h2>
+              <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '14px' }}>
+                Collez ici vos anciens sujets de devoirs de classe, exercices types d'examen ou consignes pour que l'IA connaisse exactement le niveau et le style des devoirs à vous donner.
+              </p>
 
-            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '12px', marginBottom: '20px' }}>
-              <button
-                onClick={() => setHistoryFilter('Toutes')}
+              <textarea
+                placeholder={`Exemple :
+- Devoir N°1 d'Électricité : Calculs des mailles, théorème de Thévenin, circuits RLC...
+- Type de questions attendues : Exercices pratiques avec schémas et calculs.`}
+                value={currentRefText}
+                onChange={(e) => setCurrentRefText(e.target.value)}
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  backgroundColor: historyFilter === 'Toutes' ? '#0284c7' : '#1e293b',
-                  color: '#fff',
-                  fontSize: '13px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  flexShrink: 0
+                  width: '100%',
+                  height: '150px',
+                  backgroundColor: '#0b0f19',
+                  color: '#f8fafc',
+                  border: '1px solid #334155',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  fontSize: '14px',
+                  boxSizing: 'border-box',
+                  marginBottom: '12px',
+                  outline: 'none'
                 }}
-              >
-                Toutes les matières
-              </button>
-              {MATIERES.map((m: Matiere) => (
+              />
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
                 <button
-                  key={m.id}
-                  onClick={() => setHistoryFilter(m.name)}
+                  onClick={saveHomeworkRef}
                   style={{
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    border: 'none',
-                    backgroundColor: historyFilter === m.name ? '#0284c7' : '#1e293b',
-                    color: historyFilter === m.name ? '#fff' : '#94a3b8',
-                    fontSize: '13px',
+                    padding: '10px 20px',
+                    backgroundColor: '#1e293b',
+                    color: '#38bdf8',
+                    border: '1px solid #334155',
+                    borderRadius: '8px',
                     fontWeight: 'bold',
-                    cursor: 'pointer',
-                    flexShrink: 0
+                    fontSize: '13px',
+                    cursor: 'pointer'
                   }}
                 >
-                  {m.name}
+                  💾 Enregistrer les Références
                 </button>
+
+                <button
+                  onClick={() => handleProcess('weekly_exam')}
+                  disabled={loading}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#0284c7',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {loading ? 'Génération du Devoir...' : '🎯 Générer le Devoir Bilan Hebdomadaire'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB HISTORIQUE */}
+        {activeTab === 'history' && (
+          <div>
+            <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Cours & Devoirs</h2>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+              {filteredHistory.map((item: any) => (
+                <div key={item.id} style={{ backgroundColor: '#111827', padding: '16px', borderRadius: '12px', border: '1px solid #1f2937' }}>
+                  <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
+                  <h4 style={{ margin: '6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
+                  <p style={{ fontSize: '12px', color: '#94a3b8' }}>{item.date}</p>
+                  
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                    <button onClick={(e) => exportToPDF(item, e)} style={{ padding: '6px 12px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      📄 Exporter PDF
+                    </button>
+                    <button onClick={(e) => deleteHistoryItem(item.id, e)} style={{ padding: '6px 12px', backgroundColor: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      🗑️ Supprimer
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
-
-            {filteredHistory.length === 0 ? (
-              <p style={{ color: '#94a3b8', fontSize: '14px' }}>Aucune recherche enregistrée pour la catégorie : {historyFilter}</p>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {filteredHistory.map((item: any) => (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      setGeneratedData(item.data);
-                      setSelectedSubject(item.subject);
-                      setUserAnswers({});
-                      setActiveTab('generate');
-                    }}
-                    style={{
-                      backgroundColor: '#111827',
-                      padding: '16px',
-                      borderRadius: '12px',
-                      border: '1px solid #1f2937',
-                      cursor: 'pointer',
-                      transition: '0.2s',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>{item.date}</span>
-                      </div>
-                      <h4 style={{ margin: '0 0 6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
-                      <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                        {item.data.summary}
-                      </p>
-                    </div>
-
-                    {/* BOUTONS D'ACTION : TÉLÉCHARGER ET SUPPRIMER */}
-                    <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #1e293b', paddingTop: '12px', marginTop: 'auto' }}>
-                      <button
-                        onClick={(e) => downloadHistoryItem(item, e)}
-                        style={{
-                          flex: 1,
-                          padding: '6px 12px',
-                          backgroundColor: '#1e293b',
-                          color: '#38bdf8',
-                          border: '1px solid #334155',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        📥 Télécharger
-                      </button>
-
-                      <button
-                        onClick={(e) => deleteHistoryItem(item.id, e)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: '#7f1d1d',
-                          color: '#fca5a5',
-                          border: '1px solid #991b1b',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        🗑️ Supprimer
-                      </button>
-                    </div>
-
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
       </main>
-
     </div>
   );
 }
