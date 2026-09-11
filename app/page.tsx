@@ -2,10 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 
-// Configuration du lecteur PDF
-import * as pdfjsLib from 'pdfjs-dist';
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
 interface Matiere {
   id: string;
   name: string;
@@ -25,26 +21,24 @@ const MATIERES: Matiere[] = [
 
 export default function Page() {
   const [selectedSubject, setSelectedSubject] = useState<string>(MATIERES[0].name);
-  const [activeTab, setActiveTab] = useState<'generate' | 'search' | 'homework' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'homework' | 'history'>('generate');
   
-  // Saisie texte, photo & PDF
+  // Contenus et fichiers
   const [courseText, setCourseText] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [imageFile, setImageFile] = useState<string | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string>('');
   
-  // Modération & Références Devoirs
+  // Devoirs de référence par matière
   const [homeworkRefs, setHomeworkRefs] = useState<{ [subject: string]: string }>({});
   const [currentRefText, setCurrentRefText] = useState<string>('');
 
-  // États de chargement et résultats
+  // États d'exécution et résultats
   const [loading, setLoading] = useState<boolean>(false);
   const [generatedData, setGeneratedData] = useState<any>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
   
   // Historique
   const [history, setHistory] = useState<any[]>([]);
-  const [historyFilter, setHistoryFilter] = useState<string>('Toutes');
 
   // Réponses utilisateur au quiz
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: number }>({});
@@ -62,20 +56,20 @@ export default function Page() {
     }
   }, []);
 
-  // Mettre à jour le champ de référence quand la matière change
+  // Mettre à jour le texte du sujet de devoir selon la matière choisie
   useEffect(() => {
     setCurrentRefText(homeworkRefs[selectedSubject] || '');
   }, [selectedSubject, homeworkRefs]);
 
-  // Sauvegarder la référence/sujet de devoir pour la matière active
+  // Enregistrer le sujet/référence pour la matière active
   const saveHomeworkRef = () => {
     const updated = { ...homeworkRefs, [selectedSubject]: currentRefText };
     setHomeworkRefs(updated);
     localStorage.setItem('samnote_hw_refs', JSON.stringify(updated));
-    alert(`Références de devoirs enregistrées pour : ${selectedSubject}`);
+    alert(`Sujets et références enregistrés pour : ${selectedSubject}`);
   };
 
-  // Importation et extraction de texte depuis un fichier PDF
+  // Traitement d'importation PDF via l'API serveur
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -90,27 +84,30 @@ export default function Page() {
     setErrorMsg('');
 
     try {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let fullText = '';
+      const formData = new FormData();
+      formData.append('file', file);
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items.map((item: any) => item.str).join(' ');
-        fullText += `\n--- Page ${i} ---\n` + pageText;
+      const response = await fetch('/api/extract-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de la lecture du PDF.');
       }
 
-      setCourseText((prev) => prev + `\n\n[Contenu extrait du PDF : ${file.name}]\n` + fullText);
+      setCourseText((prev) => prev + `\n\n[Contenu extrait du PDF : ${file.name}]\n` + data.text);
     } catch (err: any) {
-      setErrorMsg('Erreur lors de la lecture du fichier PDF.');
+      setErrorMsg(err.message || 'Erreur lors de la lecture du fichier PDF.');
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Importation d'une image
+  // Traitement d'importation d'image
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -120,14 +117,11 @@ export default function Page() {
     }
   };
 
-  // Traitement Génération / Recherche / Devoir Hebdomadaire
-  const handleProcess = async (mode: 'generate' | 'search' | 'weekly_exam') => {
+  // Génération de fiche / Devoir Bilan
+  const handleProcess = async (mode: 'generate' | 'weekly_exam') => {
     let textToSubmit = courseText;
 
-    if (mode === 'search') {
-      textToSubmit = searchQuery;
-    } else if (mode === 'weekly_exam') {
-      // Rassemblement de l'historique de la semaine pour la matière active
+    if (mode === 'weekly_exam') {
       const subjectHistory = history.filter((h) => h.subject === selectedSubject);
       if (subjectHistory.length === 0) {
         setErrorMsg(`Aucun cours enregistré dans l'historique pour ${selectedSubject} afin de générer le devoir hebdomadaire.`);
@@ -135,11 +129,11 @@ export default function Page() {
       }
       const summaries = subjectHistory.map((h) => h.data.summary).join('\n---\n');
       const refs = homeworkRefs[selectedSubject] || '';
-      textToSubmit = `Génère un Devoir Bilan Hebdomadaire de synthèse pour la matière : ${selectedSubject}.\n\nVoici le résumé des leçons vues cette semaine :\n${summaries}\n\nVoici le style et les types de sujet de référence à respecter :\n${refs}`;
+      textToSubmit = `Génère un Devoir Bilan Hebdomadaire de synthèse pour la matière : ${selectedSubject}.\n\nRésumé des cours vus cette semaine :\n${summaries}\n\nExemples de sujets et consignes de référence à respecter :\n${refs}`;
     }
 
     if (!textToSubmit && !imageFile) {
-      setErrorMsg('Veuillez entrer du texte, importer un PDF/Image ou avoir un historique de cours.');
+      setErrorMsg('Veuillez entrer du texte, importer un PDF/Image ou enregistrer des cours dans l\'historique.');
       return;
     }
 
@@ -174,7 +168,7 @@ export default function Page() {
       localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
 
       setGeneratedData(data);
-      if (mode === 'search' || mode === 'weekly_exam') setActiveTab('generate');
+      if (mode === 'weekly_exam') setActiveTab('generate');
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -182,7 +176,6 @@ export default function Page() {
     }
   };
 
-  // Supprimer un élément de l'historique
   const deleteHistoryItem = (idToDelete: number, e: React.MouseEvent) => {
     e.stopPropagation();
     const updatedHistory = history.filter((item) => item.id !== idToDelete);
@@ -190,7 +183,6 @@ export default function Page() {
     localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
   };
 
-  // Exporter en PDF (Impression)
   const exportToPDF = (item: any, e: React.MouseEvent) => {
     e.stopPropagation();
     const data = item.data;
@@ -255,14 +247,10 @@ export default function Page() {
     return score;
   };
 
-  const filteredHistory = history.filter((item: any) =>
-    historyFilter === 'Toutes' ? true : item.subject === historyFilter
-  );
-
   return (
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0b0f19', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
       
-      {/* SIDEBAR LATÉRALE */}
+      {/* BARRE LATÉRALE */}
       <aside style={{
         width: '280px',
         backgroundColor: '#111827',
@@ -378,22 +366,20 @@ export default function Page() {
         </div>
       </aside>
 
-      {/* ZONE PRINCIPALE */}
+      {/* ZONE DE TRAVAIL PRINCIPALE */}
       <main style={{ flex: 1, padding: '24px 32px', overflowY: 'auto', maxWidth: '1200px', margin: '0 auto' }}>
         
-        {/* TAB WORKSPACE */}
+        {/* WORKSPACE & COURS */}
         {activeTab === 'generate' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
             <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h2 style={{ fontSize: '16px', color: '#38bdf8', margin: 0, fontWeight: 'bold' }}>
-                  📥 Saisie de Cours / Importation PDF / Photo ({selectedSubject})
-                </h2>
-              </div>
+              <h2 style={{ fontSize: '16px', color: '#38bdf8', margin: '0 0 12px 0', fontWeight: 'bold' }}>
+                📥 Saisie de Cours / Importation PDF / Photo ({selectedSubject})
+              </h2>
 
               <textarea
-                placeholder={`Collez ici votre cours, ou chargez un fichier PDF/Photo ci-dessous...`}
+                placeholder={`Collez votre cours ici ou utilisez les boutons ci-dessous pour charger un fichier PDF ou une photo...`}
                 value={courseText}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCourseText(e.target.value)}
                 style={{
@@ -413,7 +399,7 @@ export default function Page() {
 
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 
-                {/* IMPORTATION PDF */}
+                {/* BOUTON PDF */}
                 <label style={{
                   padding: '10px 16px',
                   backgroundColor: '#0284c7',
@@ -427,7 +413,7 @@ export default function Page() {
                   <input type="file" accept="application/pdf" onChange={handlePdfUpload} style={{ display: 'none' }} />
                 </label>
 
-                {/* IMPORTATION PHOTO */}
+                {/* BOUTON PHOTO */}
                 <label style={{
                   padding: '10px 16px',
                   backgroundColor: '#1e293b',
@@ -460,7 +446,7 @@ export default function Page() {
                     cursor: loading ? 'not-allowed' : 'pointer'
                   }}
                 >
-                  {loading ? 'Analyse en cours...' : '⚡ Générer la Fiche & Quiz'}
+                  {loading ? 'Traitement en cours...' : '⚡ Générer Fiche & Exercices'}
                 </button>
               </div>
             </div>
@@ -471,7 +457,7 @@ export default function Page() {
               </div>
             )}
 
-            {/* FICHE GÉNÉRÉE ET QUIZ */}
+            {/* RÉSULTAT IA */}
             {generatedData && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
@@ -485,10 +471,10 @@ export default function Page() {
                 {generatedData.quiz && (
                   <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>🎯 Devoir & Évaluation</h3>
+                      <h3 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>🎯 Évaluation & Quiz</h3>
                       {Object.keys(userAnswers).length === generatedData.quiz.length && (
                         <span style={{ backgroundColor: '#0284c7', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: 'bold' }}>
-                          Note: {calculateScore()} / {generatedData.quiz.length}
+                          Score: {calculateScore()} / {generatedData.quiz.length}
                         </span>
                       )}
                     </div>
@@ -546,21 +532,19 @@ export default function Page() {
           </div>
         )}
 
-        {/* TAB DEVOIRS DE RÉFÉRENCE & DEVOIR HEBDOMADAIRE */}
+        {/* ESPACE DEVOIRS DE RÉFÉRENCE & DEVOIR HEBDOMADAIRE */}
         {activeTab === 'homework' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
               <h2 style={{ fontSize: '18px', color: '#38bdf8', marginTop: 0, marginBottom: '8px' }}>
-                📝 Devoirs de Référence pour : <span style={{ color: '#fff' }}>{selectedSubject}</span>
+                📝 Devoirs de Référence : <span style={{ color: '#fff' }}>{selectedSubject}</span>
               </h2>
               <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '14px' }}>
-                Collez ici vos anciens sujets de devoirs de classe, exercices types d'examen ou consignes pour que l'IA connaisse exactement le niveau et le style des devoirs à vous donner.
+                Collez vos anciens sujets de classe, consignes ou exercices types. L'IA adaptera les devoirs hebdomadaires en fonction de ces sujets.
               </p>
 
               <textarea
-                placeholder={`Exemple :
-- Devoir N°1 d'Électricité : Calculs des mailles, théorème de Thévenin, circuits RLC...
-- Type de questions attendues : Exercices pratiques avec schémas et calculs.`}
+                placeholder={`Collez ici les sujets de devoirs de classe pour ${selectedSubject}...`}
                 value={currentRefText}
                 onChange={(e) => setCurrentRefText(e.target.value)}
                 style={{
@@ -616,13 +600,13 @@ export default function Page() {
           </div>
         )}
 
-        {/* TAB HISTORIQUE */}
+        {/* HISTORIQUE */}
         {activeTab === 'history' && (
           <div>
             <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Cours & Devoirs</h2>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-              {filteredHistory.map((item: any) => (
+              {history.map((item: any) => (
                 <div key={item.id} style={{ backgroundColor: '#111827', padding: '16px', borderRadius: '12px', border: '1px solid #1f2937' }}>
                   <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
                   <h4 style={{ margin: '6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
