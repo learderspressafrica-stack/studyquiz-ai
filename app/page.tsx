@@ -1,174 +1,72 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
-interface Matiere {
-  id: string;
-  name: string;
-  icon: string;
-}
-
-const MATIERES: Matiere[] = [
-  { id: 'electricite', name: 'Électricité', icon: '⚡' },
-  { id: 'analogique', name: 'Électronique Analogique', icon: '🔌' },
-  { id: 'numerique', name: 'Électronique Numérique', icon: '💻' },
-  { id: 'automatisme', name: 'Automatisme', icon: '🤖' },
-  { id: 'tp', name: 'Travaux Pratiques (TP)', icon: '🛠️' },
-  { id: 'dessin_technique', name: 'Dessin Technique', icon: '📐' },
-  { id: 'gestion', name: 'Gestion', icon: '📊' },
-  { id: 'droit', name: 'Droit', icon: '⚖️' },
-];
-
-export default function Page() {
-  const [selectedSubject, setSelectedSubject] = useState<string>(MATIERES[0].name);
-  const [activeTab, setActiveTab] = useState<'generate' | 'homework' | 'history'>('generate');
-  
-  // Contenus et fichiers
-  const [courseText, setCourseText] = useState<string>('');
-  const [imageFile, setImageFile] = useState<string | null>(null);
-  const [pdfFileName, setPdfFileName] = useState<string>('');
-  
-  // Devoirs de référence par matière
-  const [homeworkRefs, setHomeworkRefs] = useState<{ [subject: string]: string }>({});
-  const [currentRefText, setCurrentRefText] = useState<string>('');
-
-  // États d'exécution et résultats
-  const [loading, setLoading] = useState<boolean>(false);
-  const [generatedData, setGeneratedData] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState<string>('');
-  
-  // Historique
-  const [history, setHistory] = useState<any[]>([]);
-
-  // Réponses utilisateur au quiz
+export default function WorkspacePage() {
+  const [inputText, setInputText] = useState('');
+  const [fileName, setFileName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [data, setData] = useState<any>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [userAnswers, setUserAnswers] = useState<{ [key: number]: number }>({});
+  const [showResults, setShowResults] = useState(false);
 
-  useEffect(() => {
-    // Charger l'historique
-    const savedHistory = localStorage.getItem('samnote_history');
-    if (savedHistory) {
-      try { setHistory(JSON.parse(savedHistory)); } catch (e) {}
-    }
-    // Charger les références de devoirs
-    const savedRefs = localStorage.getItem('samnote_hw_refs');
-    if (savedRefs) {
-      try { setHomeworkRefs(JSON.parse(savedRefs)); } catch (e) {}
-    }
-  }, []);
-
-  // Mettre à jour le texte du sujet de devoir selon la matière choisie
-  useEffect(() => {
-    setCurrentRefText(homeworkRefs[selectedSubject] || '');
-  }, [selectedSubject, homeworkRefs]);
-
-  // Enregistrer le sujet/référence pour la matière active
-  const saveHomeworkRef = () => {
-    const updated = { ...homeworkRefs, [selectedSubject]: currentRefText };
-    setHomeworkRefs(updated);
-    localStorage.setItem('samnote_hw_refs', JSON.stringify(updated));
-    alert(`Sujets et références enregistrés pour : ${selectedSubject}`);
-  };
-
-  // Traitement d'importation PDF via l'API serveur
-  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Direct PDF Upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== 'application/pdf') {
-      setErrorMsg('Veuillez sélectionner un fichier au format PDF.');
-      return;
-    }
-
-    setPdfFileName(file.name);
-    setLoading(true);
+    setFileName(file.name);
+    setExtracting(true);
     setErrorMsg('');
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
-      const response = await fetch('/api/extract-pdf', {
+    try {
+      const res = await fetch('/api/extract-pdf', {
         method: 'POST',
         body: formData,
       });
 
-      const data = await response.json();
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erreur d'extraction du PDF.");
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors de la lecture du PDF.');
-      }
-
-      setCourseText((prev) => prev + `\n\n[Contenu extrait du PDF : ${file.name}]\n` + data.text);
+      setInputText(result.text); // Mise à jour explicite du texte
     } catch (err: any) {
-      setErrorMsg(err.message || 'Erreur lors de la lecture du fichier PDF.');
-      console.error(err);
+      setErrorMsg(err.message);
     } finally {
-      setLoading(false);
+      setExtracting(false);
     }
   };
 
-  // Traitement d'importation d'image
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setImageFile(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Génération de fiche / Devoir Bilan
-  const handleProcess = async (mode: 'generate' | 'weekly_exam') => {
-    let textToSubmit = courseText;
-
-    if (mode === 'weekly_exam') {
-      const subjectHistory = history.filter((h) => h.subject === selectedSubject);
-      if (subjectHistory.length === 0) {
-        setErrorMsg(`Aucun cours enregistré dans l'historique pour ${selectedSubject} afin de générer le devoir hebdomadaire.`);
-        return;
-      }
-      const summaries = subjectHistory.map((h) => h.data.summary).join('\n---\n');
-      const refs = homeworkRefs[selectedSubject] || '';
-      textToSubmit = `Génère un Devoir Bilan Hebdomadaire de synthèse pour la matière : ${selectedSubject}.\n\nRésumé des cours vus cette semaine :\n${summaries}\n\nExemples de sujets et consignes de référence à respecter :\n${refs}`;
-    }
-
-    if (!textToSubmit && !imageFile) {
-      setErrorMsg('Veuillez entrer du texte, importer un PDF/Image ou enregistrer des cours dans l\'historique.');
+  // Generation Request
+  const handleGenerate = async () => {
+    setErrorMsg('');
+    
+    // S'assurer que le texte n'est pas vide
+    if (!inputText || !inputText.trim()) {
+      setErrorMsg("Aucun texte fourni pour la génération. Veuillez coller un cours ou importer un fichier.");
       return;
     }
 
     setLoading(true);
-    setErrorMsg('');
+    setShowResults(false);
     setUserAnswers({});
 
     try {
-      const response = await fetch('/api/generate-quiz', {
+      const res = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseText: textToSubmit,
-          homeworkImageBase64: imageFile,
-          userProfile: { subject: selectedSubject, mode },
-        }),
+        body: JSON.stringify({ prompt: inputText }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erreur lors du traitement.');
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Erreur lors de la génération.");
 
-      const newItem = {
-        id: Date.now(),
-        date: new Date().toLocaleDateString('fr-FR'),
-        subject: selectedSubject,
-        mode,
-        data,
-      };
-
-      const updatedHistory = [newItem, ...history];
-      setHistory(updatedHistory);
-      localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
-
-      setGeneratedData(data);
-      if (mode === 'weekly_exam') setActiveTab('generate');
+      setData(result);
     } catch (err: any) {
       setErrorMsg(err.message);
     } finally {
@@ -176,457 +74,129 @@ export default function Page() {
     }
   };
 
-  const deleteHistoryItem = (idToDelete: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updatedHistory = history.filter((item) => item.id !== idToDelete);
-    setHistory(updatedHistory);
-    localStorage.setItem('samnote_history', JSON.stringify(updatedHistory));
-  };
-
-  const exportToPDF = (item: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const data = item.data;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    let htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Samnote - ${data.title}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; color: #111; line-height: 1.5; }
-          h1 { color: #0284c7; border-bottom: 2px solid #0284c7; padding-bottom: 8px; }
-          h2 { color: #1e293b; margin-top: 20px; border-bottom: 1px solid #ccc; }
-          .badge { background: #e0f2fe; color: #0369a1; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
-          .quiz-item { background: #f8fafc; padding: 10px; margin-bottom: 10px; border-radius: 6px; border: 1px solid #e2e8f0; }
-          .correct { color: #15803d; font-weight: bold; }
-        </style>
-      </head>
-      <body>
-        <div><span class="badge">${item.subject}</span> &nbsp; <small>Date: ${item.date}</small></div>
-        <h1>${data.title}</h1>
-        <h2>📌 Synthèse</h2>
-        <p>${data.summary}</p>
-    `;
-
-    if (data.quiz && data.quiz.length > 0) {
-      htmlContent += `<h2>🎯 Devoir / Quiz & Explications</h2>`;
-      data.quiz.forEach((q: any, i: number) => {
-        htmlContent += `
-          <div class="quiz-item">
-            <p><strong>Q${i + 1}. ${q.question}</strong></p>
-            <ul>
-              ${q.options.map((opt: string, idx: number) => `<li class="${idx === q.correctIndex ? 'correct' : ''}">${opt} ${idx === q.correctIndex ? '✓' : ''}</li>`).join('')}
-            </ul>
-            <p><small><em>Explication: ${q.explanation}</em></small></p>
-          </div>
-        `;
-      });
+  const toggleAudioSummary = () => {
+    if (!data?.summary) return;
+    if (isPlayingAudio) {
+      window.speechSynthesis.cancel();
+      setIsPlayingAudio(false);
+    } else {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(data.summary);
+      utterance.lang = 'fr-FR';
+      utterance.onend = () => setIsPlayingAudio(false);
+      utterance.onerror = () => setIsPlayingAudio(false);
+      window.speechSynthesis.speak(utterance);
+      setIsPlayingAudio(true);
     }
-
-    htmlContent += `</body></html>`;
-
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => { printWindow.print(); }, 500);
-  };
-
-  const handleOptionSelect = (qIndex: number, oIndex: number) => {
-    if (userAnswers[qIndex] !== undefined) return;
-    setUserAnswers((prev) => ({ ...prev, [qIndex]: oIndex }));
-  };
-
-  const calculateScore = () => {
-    if (!generatedData?.quiz) return 0;
-    let score = 0;
-    generatedData.quiz.forEach((q: any, idx: number) => {
-      if (userAnswers[idx] === q.correctIndex) score++;
-    });
-    return score;
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0b0f19', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif' }}>
-      
-      {/* BARRE LATÉRALE */}
-      <aside style={{
-        width: '280px',
-        backgroundColor: '#111827',
-        borderRight: '1px solid #1f2937',
-        padding: '20px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        flexShrink: 0
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-            <div style={{ backgroundColor: '#0284c7', padding: '8px 12px', borderRadius: '10px', fontSize: '18px', fontWeight: 'bold' }}>⚡</div>
-            <div>
-              <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#f8fafc' }}>Samnote</h1>
-              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '600' }}>Électronique & Sciences</span>
-            </div>
+    <div className="p-6 max-w-5xl mx-auto text-slate-100 font-sans">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl mb-6">
+        <h2 className="text-lg font-bold text-blue-400 mb-4 flex items-center gap-2">
+          📥 Saisie de Cours / Importation PDF / Photo
+        </h2>
+
+        <textarea
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          placeholder="Le contenu de votre cours ou document importé s'affichera ici..."
+          className="w-full h-48 bg-slate-950 border border-slate-800 rounded-xl p-4 text-slate-200 text-sm focus:outline-none focus:border-blue-500 resize-none mb-4"
+        />
+
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <label className="cursor-pointer px-4 py-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+              📄 Importer un PDF
+              <input type="file" accept=".pdf" onChange={handleFileUpload} className="hidden" />
+            </label>
+
+            {fileName && (
+              <span className="text-xs text-slate-400 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+                📄 {fileName} {extracting && "(Extraction...)"}
+              </span>
+            )}
           </div>
 
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '24px' }}>
-            <button
-              onClick={() => setActiveTab('generate')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: activeTab === 'generate' ? '#1e293b' : 'transparent',
-                color: activeTab === 'generate' ? '#38bdf8' : '#94a3b8',
-                fontWeight: 'bold',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              🚀 Workspace & Cours
-            </button>
-
-            <button
-              onClick={() => setActiveTab('homework')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: activeTab === 'homework' ? '#1e293b' : 'transparent',
-                color: activeTab === 'homework' ? '#38bdf8' : '#94a3b8',
-                fontWeight: 'bold',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              📝 Devoirs & Références
-            </button>
-
-            <button
-              onClick={() => setActiveTab('history')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: activeTab === 'history' ? '#1e293b' : 'transparent',
-                color: activeTab === 'history' ? '#38bdf8' : '#94a3b8',
-                fontWeight: 'bold',
-                fontSize: '14px',
-                cursor: 'pointer',
-                textAlign: 'left'
-              }}
-            >
-              📚 Historique ({history.length})
-            </button>
-          </nav>
-
-          <div>
-            <span style={{ fontSize: '11px', textTransform: 'uppercase', color: '#64748b', fontWeight: 'bold', letterSpacing: '0.05em', display: 'block', marginBottom: '10px' }}>
-              Matière Active
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '300px', overflowY: 'auto' }}>
-              {MATIERES.map((m: Matiere) => (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedSubject(m.name)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '10px',
-                    borderRadius: '6px',
-                    border: 'none',
-                    backgroundColor: selectedSubject === m.name ? '#0284c7' : 'transparent',
-                    color: selectedSubject === m.name ? '#ffffff' : '#94a3b8',
-                    fontSize: '13px',
-                    fontWeight: selectedSubject === m.name ? 'bold' : 'normal',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: '0.2s'
-                  }}
-                >
-                  <span>{m.icon}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={loading || extracting}
+            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 shadow-lg"
+          >
+            {loading ? "Génération en cours..." : "⚡ Générer Fiche & Exercices"}
+          </button>
         </div>
-      </aside>
+      </div>
 
-      {/* ZONE DE TRAVAIL PRINCIPALE */}
-      <main style={{ flex: 1, padding: '24px 32px', overflowY: 'auto', maxWidth: '1200px', margin: '0 auto' }}>
-        
-        {/* WORKSPACE & COURS */}
-        {activeTab === 'generate' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            
-            <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-              <h2 style={{ fontSize: '16px', color: '#38bdf8', margin: '0 0 12px 0', fontWeight: 'bold' }}>
-                📥 Saisie de Cours / Importation PDF / Photo ({selectedSubject})
-              </h2>
+      {/* Message d'erreur dynamique */}
+      {errorMsg && (
+        <div className="p-4 bg-red-950/80 border border-red-500/50 text-red-200 rounded-xl text-xs font-semibold mb-6 flex items-center justify-between">
+          <span>⚠️ {errorMsg}</span>
+          <button onClick={() => setErrorMsg('')} className="text-red-400 hover:text-white font-bold">✕</button>
+        </div>
+      )}
 
-              <textarea
-                placeholder={`Collez votre cours ici ou utilisez les boutons ci-dessous pour charger un fichier PDF ou une photo...`}
-                value={courseText}
-                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCourseText(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '140px',
-                  backgroundColor: '#0b0f19',
-                  color: '#f8fafc',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  fontSize: '14px',
-                  boxSizing: 'border-box',
-                  marginBottom: '12px',
-                  outline: 'none'
-                }}
-              />
-
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                
-                {/* BOUTON PDF */}
-                <label style={{
-                  padding: '10px 16px',
-                  backgroundColor: '#0284c7',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: '#fff',
-                  fontWeight: 'bold'
-                }}>
-                  📄 Importer un PDF
-                  <input type="file" accept="application/pdf" onChange={handlePdfUpload} style={{ display: 'none' }} />
-                </label>
-
-                {/* BOUTON PHOTO */}
-                <label style={{
-                  padding: '10px 16px',
-                  backgroundColor: '#1e293b',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: '#e2e8f0',
-                  fontWeight: '500'
-                }}>
-                  📷 Importer une Photo
-                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                </label>
-
-                {pdfFileName && <span style={{ fontSize: '12px', color: '#38bdf8' }}>📄 {pdfFileName} chargé</span>}
-                {imageFile && <span style={{ fontSize: '12px', color: '#4ade80' }}>✓ Photo jointe</span>}
-
-                <button
-                  onClick={() => handleProcess('generate')}
-                  disabled={loading}
-                  style={{
-                    marginLeft: 'auto',
-                    padding: '12px 24px',
-                    backgroundColor: loading ? '#64748b' : '#10b981',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    cursor: loading ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {loading ? 'Traitement en cours...' : '⚡ Générer Fiche & Exercices'}
-                </button>
-              </div>
+      {/* Affichage des Résultats */}
+      {data && (
+        <div className="space-y-6">
+          {/* Résumé & Audio */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-md font-bold text-emerald-400">📖 Résumé du Cours</h3>
+              <button
+                onClick={toggleAudioSummary}
+                className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl"
+              >
+                {isPlayingAudio ? "⏹ Arrêter l'Audio" : "🔊 Écouter le Résumé Audio"}
+              </button>
             </div>
+            <p className="text-xs text-slate-300 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800">
+              {data.summary}
+            </p>
+          </div>
 
-            {errorMsg && (
-              <div style={{ backgroundColor: '#7f1d1d', color: '#fca5a5', padding: '12px', borderRadius: '8px', fontSize: '13px' }}>
-                {errorMsg}
-              </div>
-            )}
+          {/* Exemples du Monde Réel */}
+          {data.realWorldExamples && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-md font-bold text-amber-400 mb-3">💡 Explications & Exemples Réels</h3>
+              <ul className="space-y-2">
+                {data.realWorldExamples.map((ex: string, idx: number) => (
+                  <li key={idx} className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    • {ex}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
-            {/* RÉSULTAT IA */}
-            {generatedData && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-                  <span style={{ fontSize: '12px', backgroundColor: '#0284c7', padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
-                    {selectedSubject}
-                  </span>
-                  <h3 style={{ fontSize: '18px', color: '#f8fafc', margin: '10px 0' }}>{generatedData.title}</h3>
-                  <p style={{ fontSize: '14px', lineHeight: '1.6', color: '#cbd5e1', margin: 0 }}>{generatedData.summary}</p>
-                </div>
-
-                {generatedData.quiz && (
-                  <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3 style={{ fontSize: '16px', color: '#38bdf8', margin: 0 }}>🎯 Évaluation & Quiz</h3>
-                      {Object.keys(userAnswers).length === generatedData.quiz.length && (
-                        <span style={{ backgroundColor: '#0284c7', padding: '6px 14px', borderRadius: '16px', fontSize: '13px', fontWeight: 'bold' }}>
-                          Score: {calculateScore()} / {generatedData.quiz.length}
-                        </span>
-                      )}
+          {/* Quiz (5+ QCM) */}
+          {data.quiz && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+              <h3 className="text-md font-bold text-blue-400 mb-4">📝 Quiz d'Évaluation ({data.quiz.length} Questions)</h3>
+              <div className="space-y-4">
+                {data.quiz.map((q: any, qIdx: number) => (
+                  <div key={qIdx} className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                    <p className="text-xs font-semibold mb-3">{qIdx + 1}. {q.question}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {q.options.map((opt: string, oIdx: number) => (
+                        <button
+                          key={oIdx}
+                          onClick={() => setUserAnswers({ ...userAnswers, [qIdx]: oIdx })}
+                          className={`p-2.5 text-left text-xs rounded-lg border transition ${
+                            userAnswers[qIdx] === oIdx ? 'bg-blue-900/60 border-blue-500 text-blue-200' : 'bg-slate-900 border-slate-800 text-slate-300'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
                     </div>
-
-                    {generatedData.quiz.map((q: any, qIdx: number) => {
-                      const selectedOpt = userAnswers[qIdx];
-                      const isAnswered = selectedOpt !== undefined;
-
-                      return (
-                        <div key={qIdx} style={{ marginBottom: '16px', backgroundColor: '#0b0f19', padding: '14px', borderRadius: '10px', border: '1px solid #1e293b' }}>
-                          <p style={{ fontWeight: 'bold', fontSize: '14px', color: '#f8fafc', margin: '0 0 12px 0' }}>
-                            Q{qIdx + 1}. {q.question}
-                          </p>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {q.options.map((opt: string, oIdx: number) => {
-                              let bgColor = '#1e293b';
-                              let textColor = '#e2e8f0';
-
-                              if (isAnswered) {
-                                if (oIdx === q.correctIndex) bgColor = '#15803d';
-                                else if (oIdx === selectedOpt) bgColor = '#991b1b';
-                              }
-
-                              return (
-                                <button
-                                  key={oIdx}
-                                  onClick={() => handleOptionSelect(qIdx, oIdx)}
-                                  disabled={isAnswered}
-                                  style={{
-                                    textAlign: 'left',
-                                    padding: '12px',
-                                    backgroundColor: bgColor,
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    fontSize: '13px',
-                                    color: textColor,
-                                    cursor: isAnswered ? 'default' : 'pointer'
-                                  }}
-                                >
-                                  {opt}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {isAnswered && (
-                            <p style={{ marginTop: '10px', fontSize: '12px', color: '#cbd5e1' }}>💡 Explication: {q.explanation}</p>
-                          )}
-                        </div>
-                      );
-                    })}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ESPACE DEVOIRS DE RÉFÉRENCE & DEVOIR HEBDOMADAIRE */}
-        {activeTab === 'homework' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ backgroundColor: '#111827', padding: '20px', borderRadius: '14px', border: '1px solid #1f2937' }}>
-              <h2 style={{ fontSize: '18px', color: '#38bdf8', marginTop: 0, marginBottom: '8px' }}>
-                📝 Devoirs de Référence : <span style={{ color: '#fff' }}>{selectedSubject}</span>
-              </h2>
-              <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '14px' }}>
-                Collez vos anciens sujets de classe, consignes ou exercices types. L'IA adaptera les devoirs hebdomadaires en fonction de ces sujets.
-              </p>
-
-              <textarea
-                placeholder={`Collez ici les sujets de devoirs de classe pour ${selectedSubject}...`}
-                value={currentRefText}
-                onChange={(e) => setCurrentRefText(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '150px',
-                  backgroundColor: '#0b0f19',
-                  color: '#f8fafc',
-                  border: '1px solid #334155',
-                  borderRadius: '8px',
-                  padding: '12px',
-                  fontSize: '14px',
-                  boxSizing: 'border-box',
-                  marginBottom: '12px',
-                  outline: 'none'
-                }}
-              />
-
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
-                <button
-                  onClick={saveHomeworkRef}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#1e293b',
-                    color: '#38bdf8',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '13px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  💾 Enregistrer les Références
-                </button>
-
-                <button
-                  onClick={() => handleProcess('weekly_exam')}
-                  disabled={loading}
-                  style={{
-                    padding: '12px 24px',
-                    backgroundColor: '#0284c7',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {loading ? 'Génération du Devoir...' : '🎯 Générer le Devoir Bilan Hebdomadaire'}
-                </button>
+                ))}
               </div>
             </div>
-          </div>
-        )}
-
-        {/* HISTORIQUE */}
-        {activeTab === 'history' && (
-          <div>
-            <h2 style={{ fontSize: '20px', color: '#f8fafc', margin: '0 0 16px 0' }}>📚 Historique des Cours & Devoirs</h2>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-              {history.map((item: any) => (
-                <div key={item.id} style={{ backgroundColor: '#111827', padding: '16px', borderRadius: '12px', border: '1px solid #1f2937' }}>
-                  <span style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold' }}>{item.subject}</span>
-                  <h4 style={{ margin: '6px 0', fontSize: '15px', color: '#f8fafc' }}>{item.data.title}</h4>
-                  <p style={{ fontSize: '12px', color: '#94a3b8' }}>{item.date}</p>
-                  
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                    <button onClick={(e) => exportToPDF(item, e)} style={{ padding: '6px 12px', backgroundColor: '#0284c7', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
-                      📄 Exporter PDF
-                    </button>
-                    <button onClick={(e) => deleteHistoryItem(item.id, e)} style={{ padding: '6px 12px', backgroundColor: '#7f1d1d', color: '#fca5a5', border: 'none', borderRadius: '6px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>
-                      🗑️ Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-      </main>
+          )}
+        </div>
+      )}
     </div>
   );
 }
