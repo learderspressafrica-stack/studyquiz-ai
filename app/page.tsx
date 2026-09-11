@@ -28,6 +28,7 @@ interface SearchResult {
 }
 
 export default function SamnoteWorkspace() {
+  // Liste intégrale de vos matières
   const subjectsList = [
     'Électricité',
     'Électronique Analogique',
@@ -49,6 +50,7 @@ export default function SamnoteWorkspace() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Mémorisation par matière pour éviter le blocage / mélange de données
   const [subjectData, setSubjectData] = useState<Record<string, {
     summary?: string;
     qa?: QAItem[];
@@ -63,7 +65,7 @@ export default function SamnoteWorkspace() {
     setSearchResult(null);
   };
 
-  // Gestion de l'importation de fichiers (PDF / Photos) depuis le téléphone ou le PC
+  // Importation directe de Photo / PDF depuis le téléphone ou PC
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -71,17 +73,15 @@ export default function SamnoteWorkspace() {
     if (file.type.startsWith('text/') || file.name.endsWith('.txt')) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setInputText(content);
+        setInputText(event.target?.result as string || '');
       };
       reader.readAsText(file);
     } else {
-      // Pour les PDF ou images, insertion d'une note informative dans le champ de saisie
-      setInputText(`[Fichier importé : ${file.name}]\n\nSaisissez ou collez les notes extraites du document ci-dessus.`);
+      setInputText(`[Document importé : ${file.name}]\nSaisissez ou collez les détails explicatifs du document ici pour l'analyse...`);
     }
   };
 
-  // Analyse du cours
+  // Génération du cours via l'API
   const handleGenerate = async () => {
     if (!inputText.trim()) return;
     setLoading(true);
@@ -106,16 +106,16 @@ export default function SamnoteWorkspace() {
           }
         }));
       } else {
-        alert(data.error || "Une erreur est survenue lors du traitement.");
+        alert(data.error || "Une erreur est survenue.");
       }
     } catch (err) {
-      alert("Erreur de connexion au serveur.");
+      alert("Erreur de connexion avec le serveur.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Barre de recherche
+  // Moteur de recherche de concepts
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
@@ -131,22 +131,21 @@ export default function SamnoteWorkspace() {
       if (res.ok) {
         setSearchResult(data);
       } else {
-        // Fallback local si la route backend de recherche n'est pas configurée
         setSearchResult({
           term: searchQuery,
-          definition: `Concept et principes généraux concernant "${searchQuery}" dans la matière ${currentSubject}.`,
-          howItWorks: `Application pratique, schémas et cas d'usage industriels pour ${searchQuery}.`,
-          characteristics: ['Composant / Notion clé', 'Utilisation en laboratoire', 'Normes standards'],
-          imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20of%20${encodeURIComponent(searchQuery)}?width=600&height=400&nologo=true`
+          definition: `Définition et principes pour "${searchQuery}" dans la matière ${currentSubject}.`,
+          howItWorks: `Explication théorique et fonctionnement de ${searchQuery}.`,
+          characteristics: ['Concept clé', 'Application pratique'],
+          imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20schema%20of%20${encodeURIComponent(searchQuery)}?width=600&height=400&nologo=true`
         });
       }
     } catch (err) {
       setSearchResult({
         term: searchQuery,
-        definition: `Explication pour "${searchQuery}" dans la matière ${currentSubject}.`,
-        howItWorks: `Fonctionnement théorique et cas d'application.`,
-        characteristics: ['Concept fondamental', 'Fiche récapitulative'],
-        imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20of%20${encodeURIComponent(searchQuery)}?width=600&height=400&nologo=true`
+        definition: `Explication pour "${searchQuery}" dans ${currentSubject}.`,
+        howItWorks: `Analyse et détails techniques.`,
+        characteristics: ['Notion importante'],
+        imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20schema%20of%20${encodeURIComponent(searchQuery)}?width=600&height=400&nologo=true`
       });
     } finally {
       setSearchLoading(false);
@@ -158,19 +157,19 @@ export default function SamnoteWorkspace() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
       
-      {/* BARRE LATÉRALE - LISTE DES MATIÈRES */}
+      {/* MENU LATÉRAL : MATIÈRES */}
       <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-4 flex-shrink-0">
         <h1 className="text-xl font-bold text-blue-400 mb-6 flex items-center gap-2">
           ⚡ Samnote
         </h1>
         
-        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Espace de travail</p>
+        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Navigation</p>
         <button className="w-full text-left px-3 py-2 bg-blue-600/20 text-blue-400 rounded-lg text-sm mb-4 font-medium border border-blue-500/30">
           📁 Espace de Travail
         </button>
 
         <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières</p>
-        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 max-h-[50vh] md:max-h-none overflow-y-auto">
+        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 max-h-[40vh] md:max-h-none overflow-y-auto">
           {subjectsList.map((sub) => (
             <button
               key={sub}
@@ -187,14 +186,14 @@ export default function SamnoteWorkspace() {
         </div>
       </aside>
 
-      {/* CONTENU PRINCIPAL */}
+      {/* ZONE DE CONTENU PRINCIPAL */}
       <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
         
         {/* BARRE DE RECHERCHE */}
         <div className="flex flex-col sm:flex-row gap-2">
           <input
             type="text"
-            placeholder={`Rechercher un terme dans ${currentSubject}...`}
+            placeholder={`Rechercher un composant ou un terme dans ${currentSubject}...`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
@@ -208,7 +207,7 @@ export default function SamnoteWorkspace() {
           </button>
         </div>
 
-        {/* FICHE DE RECHERCHE */}
+        {/* AFFICHAGE DES RÉSULTATS DE LA RECHERCHE */}
         {searchResult && (
           <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-5 relative">
             <button 
@@ -217,7 +216,7 @@ export default function SamnoteWorkspace() {
             >
               ✕
             </button>
-            <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Résultat de recherche : {searchResult.term}</h2>
+            <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Résultat : {searchResult.term}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
               <div className="space-y-3">
@@ -243,7 +242,7 @@ export default function SamnoteWorkspace() {
 
               {searchResult.imageUrl && (
                 <div className="flex flex-col items-center">
-                  <span className="text-xs text-slate-400 mb-1">Schéma / Dessin Technique</span>
+                  <span className="text-xs text-slate-400 mb-1">Schéma & Dessin Technique</span>
                   <img
                     src={searchResult.imageUrl}
                     alt={searchResult.term}
@@ -255,22 +254,21 @@ export default function SamnoteWorkspace() {
           </section>
         )}
 
-        {/* ZONE DE SAISIE ET IMPORTATION DE FICHIER (PDF / PHOTO) */}
+        {/* SAISIE DU COURS & IMPORTATION DE FICHIER */}
         <section className="bg-slate-900 border border-slate-800 rounded-xl p-4">
           <h2 className="text-md font-semibold text-slate-200 mb-2">
-            Zone de Saisie & Importation ({currentSubject})
+            Zone de Saisie & Importation — <span className="text-blue-400">{currentSubject}</span>
           </h2>
           
           <textarea
             rows={5}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            placeholder={`Tapez votre cours ici ou déposez une photo / PDF pour la matière ${currentSubject}...`}
+            placeholder={`Saisissez votre cours ici ou importez un fichier Photo / PDF pour la matière ${currentSubject}...`}
             className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
           />
 
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3 mt-3">
-            {/* Input fichier caché pour mobile et PC */}
             <input
               type="file"
               ref={fileInputRef}
@@ -291,12 +289,12 @@ export default function SamnoteWorkspace() {
               disabled={loading}
               className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
             >
-              {loading ? 'Analyse en cours...' : 'Générer Fiche, Audio & Quiz'}
+              {loading ? 'Génération en cours...' : 'Générer Fiche, Audio & Quiz'}
             </button>
           </div>
         </section>
 
-        {/* RÉSUMÉ DU COURS */}
+        {/* RÉSUMÉ */}
         {currentData.summary && (
           <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <h2 className="text-lg font-bold text-emerald-400 mb-2">📘 Résumé & Explication ({currentSubject})</h2>
@@ -341,7 +339,7 @@ export default function SamnoteWorkspace() {
           </section>
         )}
 
-        {/* QUIZ D'ÉVALUATION */}
+        {/* QUIZ */}
         {currentData.quiz && currentData.quiz.length > 0 && (
           <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
             <h2 className="text-lg font-bold text-blue-400 mb-4">📝 Quiz ({currentSubject})</h2>
