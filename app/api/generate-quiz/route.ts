@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     if (!apiKey) {
       return NextResponse.json(
-        { error: "La clé GEMINI_API_KEY n'est pas configurée sur Vercel." },
+        { error: "La clé GEMINI_API_KEY n'est pas configurée dans Vercel." },
         { status: 500 }
       );
     }
@@ -17,14 +17,13 @@ export async function POST(req: Request) {
 
     if (!prompt) {
       return NextResponse.json(
-        { error: "Aucun texte fourni pour la génération du quiz." },
+        { error: "Aucun texte fourni pour l'analyse." },
         { status: 400 }
       );
     }
 
-    // Utilisation de l'ID exact : 'gemini-3.6-flash'
     const model = genAI.getGenerativeModel({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
       },
@@ -32,13 +31,25 @@ export async function POST(req: Request) {
 
     const systemInstruction = `
 Tu es un assistant pédagogique expert pour l'application Samnote.
-Analyse le texte fourni et génère obligatoirement un objet JSON strict :
+Analyse le document fourni et génère un objet JSON strict suivant cette structure exacte :
 {
-  "summary": "Résumé synthétique et pédagogique du cours...",
-  "componentsToIllustrate": ["Composant 1", "Composant 2"],
+  "summary": "Explication claire, simple et accessible à un élève, avec des analogies si nécessaire...",
+  "qa": [
+    {
+      "question": "Question fréquente ou clé sur le cours ?",
+      "answer": "Explication détaillée et pédagogique de la réponse."
+    }
+  ],
+  "componentsToIllustrate": [
+    {
+      "name": "Nom du composant ou système (ex: Moteur à explosion)",
+      "description": "Description technique et rôle du composant.",
+      "imagePrompt": "Technical diagram style drawing, clean engineering lines, clear annotations, realistic detail of [Nom du composant]"
+    }
+  ],
   "quiz": [
     {
-      "question": "Intitulé de la question ?",
+      "question": "Question du quiz ?",
       "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctIndex": 0
     }
@@ -46,14 +57,11 @@ Analyse le texte fourni et génère obligatoirement un objet JSON strict :
 }
 `;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nContenu :\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nContenu à analyser :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
-      return NextResponse.json(
-        { error: "L'IA n'a pas retourné de résultat." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "L'IA n'a pas retourné de réponse." }, { status: 500 });
     }
 
     const parsedData = JSON.parse(responseText);
@@ -61,9 +69,6 @@ Analyse le texte fourni et génère obligatoirement un objet JSON strict :
 
   } catch (error: any) {
     console.error("Erreur API Gemini:", error);
-    return NextResponse.json(
-      { error: error.message || "Erreur lors du traitement par l'IA" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message || "Erreur serveur" }, { status: 500 });
   }
 }
