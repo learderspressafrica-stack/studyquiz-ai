@@ -1,135 +1,807 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
-export default function SearchConceptPage() {
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
-  const [imageUrl, setImageUrl] = useState('');
+interface QuizItem {
+  question: string;
+  options: string[];
+  correctIndex: number;
+}
 
-  // Fonction pour récupérer une image réelle via Wikimedia Commons
-  const fetchRealImage = async (searchTerm: string) => {
-    try {
-      const res = await fetch(
-        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
-          searchTerm + ' electronic component'
-        )}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=600&format=json&origin=*`
-      );
-      const json = await res.json();
-      if (json.query && json.query.pages) {
-        const pageId = Object.keys(json.query.pages)[0];
-        const thumb = json.query.pages[pageId].thumbnail;
-        if (thumb) {
-          setImageUrl(thumb.source);
-          return;
-        }
-      }
-      setImageUrl('');
-    } catch (err) {
-      console.error("Erreur image Wikimedia:", err);
-      setImageUrl('');
+interface QAItem {
+  question: string;
+  answer: string;
+}
+
+interface ComponentIllustration {
+  name: string;
+  description: string;
+  imagePrompt: string;
+}
+
+interface SearchResult {
+  term: string;
+  definition: string;
+  howItWorks: string;
+  characteristics: string[];
+  imageUrl: string;
+}
+
+interface SavedReference {
+  id: string;
+  title: string;
+  subject: string;
+  date: string;
+  type: string;
+  content: string;
+  imageDataUrl?: string;
+  summary?: string;
+  qa?: QAItem[];
+  quiz?: QuizItem[];
+}
+
+export default function SamnoteWorkspace() {
+  const subjectsList = [
+    { name: 'Électricité', icon: '⚡' },
+    { name: 'Électronique Analogique', icon: '📻' },
+    { name: 'Électronique Numérique', icon: '🔢' },
+    { name: 'Mesures Électroniques', icon: '📏' },
+    { name: 'Automatisme', icon: '⚙️' },
+    { name: 'Technologie', icon: '🛠️' },
+    { name: 'Utilisation', icon: '🔌' },
+    { name: 'TP (Travaux Pratiques)', icon: '🔬' },
+    { name: 'Dessin Technique', icon: '📐' },
+    { name: 'Gestion', icon: '📊' },
+    { name: 'Droit', icon: '⚖️' }
+  ];
+
+  const [currentSubject, setCurrentSubject] = useState<string>('Électricité');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'history' | 'references'>('workspace');
+  
+  const [inputText, setInputText] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchLoading, setSearchLoading] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  
+  // Devs & Références
+  const [refTitle, setRefTitle] = useState<string>('');
+  const [refType, setRefType] = useState<string>('Cours de Référence');
+  const [refContentText, setRefContentText] = useState<string>('');
+  const [refImageData, setRefImageData] = useState<string>('');
+  const [refSubject, setRefSubject] = useState<string>('Électricité');
+
+  const [references, setReferences] = useState<SavedReference[]>([]);
+  const [history, setHistory] = useState<SavedReference[]>([]);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<SavedReference | null>(null);
+
+  // Audio & Quiz
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
+  const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
+  
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const refPhotoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [subjectData, setSubjectData] = useState<Record<string, {
+    summary?: string;
+    qa?: QAItem[];
+    illustrations?: ComponentIllustration[];
+    quiz?: QuizItem[];
+  }>>({});
+
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
+
+  useEffect(() => {
+    const savedHist = localStorage.getItem('samnote_history');
+    if (savedHist) setHistory(JSON.parse(savedHist));
+
+    const savedRefs = localStorage.getItem('samnote_references');
+    if (savedRefs) setReferences(JSON.parse(savedRefs));
+  }, []);
+
+  const handleSubjectChange = (subject: string) => {
+    setCurrentSubject(subject);
+    setRefSubject(subject);
+    setSearchResult(null);
+    setUserAnswers({});
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    setIsPlayingAudio(false);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type.startsWith('text/') || file.name.endsWith('.txt')) {
+      const reader = new FileReader();
+      reader.onload = (event) => setInputText(event.target?.result as string || '');
+      reader.readAsText(file);
+    } else {
+      setInputText(`[Document / Image chargée : ${file.name}]\nSaisissez des détails supplémentaires pour l'analyse...`);
     }
   };
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleRefPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    setLoading(true);
-    setData(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setRefImageData(event.target?.result as string || '');
+    };
+    reader.readAsDataURL(file);
+  };
 
-    // 1. Récupérer la vraie photo
-    await fetchRealImage(query);
+  const handleSaveReference = () => {
+    if (!refTitle.trim()) {
+      alert("Veuillez saisir un titre pour ce document de référence.");
+      return;
+    }
 
-    // 2. Appel à ton API de recherche/IA (ex: /api/search-concept ou route interne)
+    if (!refContentText.trim() && !refImageData) {
+      alert("Veuillez ajouter du texte ou prendre une photo de votre cours/devoir.");
+      return;
+    }
+
+    const newRef: SavedReference = {
+      id: Date.now().toString(),
+      title: refTitle,
+      subject: refSubject,
+      date: new Date().toLocaleDateString('fr-FR'),
+      type: refType,
+      content: refContentText || '(Référence visuelle par photo)',
+      imageDataUrl: refImageData,
+    };
+
+    const updated = [newRef, ...references];
+    setReferences(updated);
+    localStorage.setItem('samnote_references', JSON.stringify(updated));
+    
+    setRefTitle('');
+    setRefContentText('');
+    setRefImageData('');
+    alert("Cours / Devoir de référence enregistré !");
+  };
+
+  const handleDeleteReference = (id: string) => {
+    const updated = references.filter(r => r.id !== id);
+    setReferences(updated);
+    localStorage.setItem('samnote_references', JSON.stringify(updated));
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    const updated = history.filter(h => h.id !== id);
+    setHistory(updated);
+    localStorage.setItem('samnote_history', JSON.stringify(updated));
+    if (selectedHistoryItem?.id === id) setSelectedHistoryItem(null);
+  };
+
+  const handleExportPDF = (title: string, subject: string, summaryText?: string) => {
+    if (!summaryText) {
+      alert("Aucun résumé disponible pour l'exportation.");
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Export PDF - Samnote (${subject})</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 25px; color: #1e293b; line-height: 1.6; }
+            h1 { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 5px; }
+            .meta { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+            .box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 18px; border-radius: 8px; margin-bottom: 20px; }
+            h2 { color: #059669; margin-top: 0; }
+            .footer { margin-top: 40px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1>⚡ Samnote - ${title}</h1>
+          <div class="meta">Matière : <strong>${subject}</strong> | Date : ${new Date().toLocaleDateString('fr-FR')}</div>
+          <div class="box">
+            <h2>📘 Résumé Complet du Cours</h2>
+            <p>${summaryText.replace(/\n/g, '<br/>')}</p>
+          </div>
+          <div class="footer">Document d'étude généré et conservé par Samnote (BP Électronique & Automatisme)</div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const toggleAudio = (textToRead: string) => {
+    if (!('speechSynthesis' in window)) {
+      alert("La synthèse vocale n'est pas disponible sur votre appareil.");
+      return;
+    }
+
+    if (isPlayingAudio) {
+      window.speechSynthesis.cancel();
+      setIsPlayingAudio(false);
+    } else {
+      const utterance = new SpeechSynthesisUtterance(textToRead);
+      utterance.lang = 'fr-FR';
+      utterance.onend = () => setIsPlayingAudio(false);
+      utterance.onerror = () => setIsPlayingAudio(false);
+      window.speechSynthesis.speak(utterance);
+      setIsPlayingAudio(true);
+    }
+  };
+
+  const fetchRealImage = async (term: string): Promise<string> => {
     try {
-      const response = await fetch('/api/search-concept', {
+      const wikiRes = await fetch(
+        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&search=${encodeURIComponent(
+          term + ' electronic component'
+        )}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=600&format=json&origin=*`
+      );
+      const wikiData = await wikiRes.json();
+      if (wikiData.query && wikiData.query.pages) {
+        const pages = wikiData.query.pages;
+        const firstKey = Object.keys(pages)[0];
+        if (pages[firstKey]?.thumbnail?.source) {
+          return pages[firstKey].thumbnail.source;
+        }
+      }
+    } catch (e) {
+      console.error("Erreur Wikimedia Image:", e);
+    }
+    return `https://image.pollinations.ai/prompt/high%20resolution%20real%20photo%20of%20electronic%20${encodeURIComponent(term)}%20component%20lab?width=600&height=400&nologo=true`;
+  };
+
+  const handleGenerate = async () => {
+    if (!inputText.trim()) {
+      alert("Veuillez saisir un texte de cours.");
+      return;
+    }
+    setLoading(true);
+    setUserAnswers({});
+
+    const subjectRefs = references
+      .filter(r => r.subject === currentSubject)
+      .map(r => `[RÉFÉRENCE: ${r.title}] ${r.content}`)
+      .join('\n');
+
+    const promptCombined = `[Matière : ${currentSubject}]\n${subjectRefs ? `--- ÉLÉMENTS DE RÉFÉRENCE REGISTRÉS ---\n${subjectRefs}\n-----------------------------------\n` : ''}${inputText}`;
+
+    try {
+      const res = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ prompt: promptCombined }),
       });
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setSubjectData(prev => ({
+          ...prev,
+          [currentSubject]: {
+            summary: data.summary,
+            qa: data.qa,
+            illustrations: data.componentsToIllustrate,
+            quiz: data.quiz,
+          }
+        }));
+
+        const newHistItem: SavedReference = {
+          id: Date.now().toString(),
+          title: `Résumé : ${currentSubject} (${new Date().toLocaleDateString('fr-FR')})`,
+          subject: currentSubject,
+          date: new Date().toLocaleDateString('fr-FR'),
+          type: 'Génération IA',
+          content: inputText,
+          summary: data.summary,
+          qa: data.qa,
+          quiz: data.quiz
+        };
+
+        const updatedHist = [newHistItem, ...history];
+        setHistory(updatedHist);
+        localStorage.setItem('samnote_history', JSON.stringify(updatedHist));
+
+      } else {
+        alert(data.error || "Erreur de génération.");
       }
-    } catch (error) {
-      console.error("Erreur de recherche:", error);
+    } catch (err) {
+      alert("Erreur de connexion avec le serveur.");
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearchLoading(true);
+
+    try {
+      const promptSearch = `Recherche approfondie pour le composant "${searchQuery}" en ${currentSubject}.`;
+      
+      const realImgUrl = await fetchRealImage(searchQuery);
+
+      const res = await fetch('/api/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptSearch }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.summary) {
+        setSearchResult({
+          term: searchQuery,
+          definition: data.summary,
+          howItWorks: data.qa && data.qa[0] ? `${data.qa[0].question} : ${data.qa[0].answer}` : `Fonctionnement de ${searchQuery}.`,
+          characteristics: ['Spécifications techniques'],
+          imageUrl: realImgUrl
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleOptionClick = (questionIdx: number, optionIdx: number) => {
+    if (userAnswers[questionIdx] !== undefined) return;
+    setUserAnswers(prev => ({ ...prev, [questionIdx]: optionIdx }));
+  };
+
+  const currentData = subjectData[currentSubject] || {};
+
   return (
-    <div className="max-w-4xl mx-auto p-6 text-white">
-      {/* Formulaire de recherche */}
-      <form onSubmit={handleSearch} className="flex gap-3 mb-6">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Entrez un composant (ex: transistor, diode)..."
-          className="flex-1 p-3 rounded-lg bg-slate-900 border border-slate-700 text-white focus:outline-none focus:border-blue-500"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold transition-colors disabled:opacity-50"
-        >
-          {loading ? 'Recherche...' : 'Rechercher'}
-        </button>
-      </form>
-
-      {/* Affichage des résultats */}
-      {data && (
-        <div className="bg-slate-800 rounded-xl p-6 grid grid-cols-1 md:grid-cols-3 gap-6 border border-slate-700">
-          <div className="md:col-span-2 space-y-4">
-            <h2 className="text-2xl font-bold text-blue-400">
-              💡 Fiche Technique : {data.titre || query}
-            </h2>
-            
-            {data.definition && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-200">📖 Définition & Symbole</h3>
-                <p className="text-slate-300 mt-1">{data.definition}</p>
-              </div>
-            )}
-
-            {data.fonctionnement && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-200">⚡ Fonctionnement</h3>
-                <p className="text-slate-300 mt-1">{data.fonctionnement}</p>
-              </div>
-            )}
-
-            {data.caracteristiques && (
-              <div>
-                <h3 className="text-lg font-semibold text-slate-200">📊 Caractéristiques</h3>
-                <ul className="list-disc list-inside text-slate-300 mt-1">
-                  {Array.isArray(data.caracteristiques) 
-                    ? data.caracteristiques.map((item: string, idx: number) => <li key={idx}>{item}</li>)
-                    : <li>{data.caracteristiques}</li>
-                  }
-                </ul>
-              </div>
-            )}
-          </div>
-
-          {/* Vraie photo du composant */}
-          {imageUrl && (
-            <div className="flex flex-col items-center justify-start bg-slate-900 p-4 rounded-lg border border-slate-700">
-              <img
-                src={imageUrl}
-                alt={query}
-                className="w-full h-48 object-contain rounded-md"
-              />
-              <span className="text-xs text-slate-400 mt-2 text-center">
-                Photo réelle du composant (Wikimedia)
-              </span>
-            </div>
-          )}
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans">
+      
+      {/* BARRE LATÉRALE */}
+      <aside className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-4 flex-shrink-0">
+        <h1 className="text-xl font-bold text-blue-400 mb-6 flex items-center gap-2">
+          ⚡ Samnote
+        </h1>
+        
+        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Navigation</p>
+        <div className="space-y-1 mb-6">
+          <button
+            onClick={() => setActiveTab('workspace')}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'workspace' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            📋 Espace de Travail
+          </button>
+          <button
+            onClick={() => setActiveTab('references')}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'references' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            📑 Cours & Devoirs Référence
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'history' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            📜 Historique Complet ({history.length})
+          </button>
         </div>
-      )}
+
+        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières & Filières</p>
+        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 max-h-[40vh] md:max-h-none overflow-y-auto">
+          {subjectsList.map((sub) => (
+            <button
+              key={sub.name}
+              onClick={() => {
+                handleSubjectChange(sub.name);
+                setActiveTab('workspace');
+              }}
+              className={`px-3 py-2 rounded-lg text-sm text-left whitespace-nowrap transition-colors flex items-center gap-2 ${
+                currentSubject === sub.name && activeTab === 'workspace'
+                  ? 'bg-blue-600/30 text-blue-400 font-medium border border-blue-500/40'
+                  : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <span>{sub.icon}</span>
+              <span>{sub.name}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      {/* ZONE DE CONTENU PRINCIPAL */}
+      <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
+        
+        {/* VUE 1 : ESPACE DE TRAVAIL */}
+        {activeTab === 'workspace' && (
+          <>
+            {/* RECHERCHE COMPOSANTS */}
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                placeholder={`Rechercher la photo réelle d'un composant (ex: Diode 1N4007, Transistor 2N2222, NE555)...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                onClick={handleSearch}
+                disabled={searchLoading}
+                className="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
+                {searchLoading ? 'Recherche...' : '🔍 Rechercher Photo Réelle'}
+              </button>
+            </div>
+
+            {/* RÉSULTAT DE RECHERCHE AVEC VRAIE PHOTO */}
+            {searchResult && (
+              <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-5 relative">
+                <button onClick={() => setSearchResult(null)} className="absolute top-3 right-3 text-slate-400 hover:text-white">✕</button>
+                <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Photo & Fiche Technique Réelle : {searchResult.term}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-center">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-300">📖 Description :</h3>
+                      <p className="text-sm text-slate-200 mt-1">{searchResult.definition}</p>
+                    </div>
+                  </div>
+                  {searchResult.imageUrl && (
+                    <div className="bg-slate-950 p-2 rounded-lg border border-slate-800 flex flex-col items-center">
+                      <img src={searchResult.imageUrl} alt={searchResult.term} className="max-h-64 object-contain rounded-lg" />
+                      <span className="text-[11px] text-slate-400 mt-2">Source / Image exacte du composant</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* FORMULAIRE DE SAISIE */}
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+              <h2 className="text-md font-semibold text-slate-200">
+                Saisie & Analyse — <span className="text-blue-400">{currentSubject}</span>
+              </h2>
+              
+              <textarea
+                rows={4}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder={`Saisissez le texte du cours pour générer le résumé interactif...`}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*,.pdf,.txt" className="hidden" />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5"
+                >
+                  📷 Importer Fichier / Photo
+                </button>
+
+                <button
+                  onClick={handleGenerate}
+                  disabled={loading}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {loading ? 'Analyse en cours...' : '⚡ Générer & Enregistrer dans l\'Historique'}
+                </button>
+              </div>
+            </section>
+
+            {/* RÉSULTAT DU COURS GENERÉ */}
+            {currentData.summary && (
+              <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <div className="flex flex-wrap justify-between items-center gap-2">
+                  <h2 className="text-lg font-bold text-emerald-400">📘 Résumé ({currentSubject})</h2>
+                  <div className="flex gap-2">
+                    <button onClick={() => toggleAudio(currentData.summary || '')} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-300">
+                      {isPlayingAudio ? '⏹️ Arrêter Audio' : '🔊 Écouter Audio'}
+                    </button>
+                    <button onClick={() => handleExportPDF(`Fiche ${currentSubject}`, currentSubject, currentData.summary)} className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg text-xs font-medium">
+                      📄 Exporter PDF
+                    </button>
+                  </div>
+                </div>
+                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{currentData.summary}</p>
+              </section>
+            )}
+
+            {/* QUESTIONS & RÉPONSES */}
+            {currentData.qa && currentData.qa.length > 0 && (
+              <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <h2 className="text-lg font-bold text-purple-400 mb-4">❓ Questions & Réponses</h2>
+                <div className="space-y-3">
+                  {currentData.qa.map((item, idx) => (
+                    <div key={idx} className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                      <p className="text-sm font-semibold text-purple-300">Q: {item.question}</p>
+                      <p className="text-sm text-slate-300 mt-1">R: {item.answer}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* QUIZ INTERACTIF */}
+            {currentData.quiz && currentData.quiz.length > 0 && (
+              <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+                <h2 className="text-lg font-bold text-blue-400 mb-4">📝 Quiz d'Évaluation</h2>
+                <div className="space-y-5">
+                  {currentData.quiz.map((q, qIdx) => {
+                    const selectedOption = userAnswers[qIdx];
+                    const isAnswered = selectedOption !== undefined;
+
+                    return (
+                      <div key={qIdx} className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                        <p className="text-sm font-medium mb-3 text-slate-200">{qIdx + 1}. {q.question}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {q.options.map((opt, optIdx) => {
+                            let btnStyle = "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800";
+                            if (isAnswered) {
+                              if (optIdx === q.correctIndex) {
+                                btnStyle = "bg-emerald-600/30 border-emerald-500 text-emerald-300 font-bold";
+                              } else if (optIdx === selectedOption && selectedOption !== q.correctIndex) {
+                                btnStyle = "bg-rose-600/30 border-rose-500 text-rose-300 font-bold";
+                              } else {
+                                btnStyle = "bg-slate-900/40 text-slate-500 border-slate-800 opacity-60";
+                              }
+                            }
+                            return (
+                              <button
+                                key={optIdx}
+                                onClick={() => handleOptionClick(qIdx, optIdx)}
+                                className={`text-left text-xs p-3 rounded-lg border transition-all ${btnStyle}`}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+
+        {/* VUE 2 : COURS & DEVOIRS DE RÉFÉRENCE */}
+        {activeTab === 'references' && (
+          <div className="space-y-6">
+            <section className="bg-slate-900 border border-blue-500/30 rounded-xl p-5 space-y-4">
+              <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+                ➕ Enregistrer un Cours ou Devoir de Référence
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  placeholder="Titre du document..."
+                  value={refTitle}
+                  onChange={(e) => setRefTitle(e.target.value)}
+                  className="sm:col-span-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+
+                <select
+                  value={refSubject}
+                  onChange={(e) => setRefSubject(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300"
+                >
+                  {subjectsList.map(s => <option key={s.name} value={s.name}>{s.icon} {s.name}</option>)}
+                </select>
+
+                <select
+                  value={refType}
+                  onChange={(e) => setRefType(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300"
+                >
+                  <option value="Cours de Référence">Cours de Référence</option>
+                  <option value="Devoir de Référence">Devoir de Référence</option>
+                  <option value="Travaux Pratiques (TP)">Travaux Pratiques (TP)</option>
+                </select>
+              </div>
+
+              <textarea
+                rows={3}
+                placeholder="Texte de cours / devoir..."
+                value={refContentText}
+                onChange={(e) => setRefContentText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-950 p-4 rounded-lg border border-slate-800">
+                <input
+                  type="file"
+                  ref={refPhotoInputRef}
+                  onChange={handleRefPhotoUpload}
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => refPhotoInputRef.current?.click()}
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-300 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2"
+                  >
+                    📸 Prenez une Photo Directe
+                  </button>
+
+                  {refImageData && (
+                    <span className="text-xs text-emerald-400 font-medium">✓ Photo prête</span>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleSaveReference}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  💾 Sauvegarder
+                </button>
+              </div>
+            </section>
+
+            {/* LISTE DES RÉFÉRENCES */}
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <h2 className="text-xl font-bold text-slate-100">📑 Vos Documents de Référence Enregistrés</h2>
+
+              {references.length === 0 ? (
+                <p className="text-sm text-slate-500 italic py-6 text-center">Aucun cours ni devoir enregistré.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {references.map((item) => (
+                    <div key={item.id} className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <h3 className="text-md font-bold text-blue-400">{item.title}</h3>
+                        <button onClick={() => handleDeleteReference(item.id)} className="text-xs text-rose-400 hover:underline">Supprimer</button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="bg-blue-600/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">{item.subject}</span>
+                        <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{item.type}</span>
+                        <span className="text-slate-500 py-0.5">{item.date}</span>
+                      </div>
+
+                      {item.imageDataUrl && (
+                        <img src={item.imageDataUrl} alt={item.title} className="w-full h-40 object-cover rounded border border-slate-800" />
+                      )}
+
+                      {item.content && (
+                        <p className="text-xs text-slate-300 bg-slate-900 p-3 rounded border border-slate-800 whitespace-pre-line">
+                          {item.content}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* VUE 3 : HISTORIQUE COMPLET ET LISIBLE */}
+        {activeTab === 'history' && (
+          <div className="space-y-6">
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-emerald-400">📜 Historique des Résumés et Cours</h2>
+                {history.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (confirm("Voulez-vous supprimer tout l'historique ?")) {
+                        setHistory([]);
+                        localStorage.removeItem('samnote_history');
+                        setSelectedHistoryItem(null);
+                      }
+                    }}
+                    className="text-xs text-rose-400 hover:underline"
+                  >
+                    Vider l'historique
+                  </button>
+                )}
+              </div>
+
+              {history.length === 0 ? (
+                <p className="text-sm text-slate-500 italic py-6 text-center">Aucun résumé enregistré dans l'historique.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Liste à gauche */}
+                  <div className="space-y-2 md:col-span-1 border-r border-slate-800 pr-0 md:pr-4">
+                    {history.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedHistoryItem(item)}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                          selectedHistoryItem?.id === item.id
+                            ? 'bg-blue-600/20 border-blue-500 text-white'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <h3 className="text-xs font-bold text-blue-300">{item.title}</h3>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteHistory(item.id);
+                            }}
+                            className="text-[10px] text-rose-400 hover:underline"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-2">
+                          <span>{item.subject}</span>
+                          <span>{item.date}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Vue détaillée à droite */}
+                  <div className="md:col-span-2 bg-slate-950 p-4 rounded-lg border border-slate-800 min-h-[300px]">
+                    {selectedHistoryItem ? (
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
+                          <div>
+                            <h3 className="text-lg font-bold text-blue-400">{selectedHistoryItem.title}</h3>
+                            <p className="text-xs text-slate-400">Matière : {selectedHistoryItem.subject} — Date : {selectedHistoryItem.date}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => toggleAudio(selectedHistoryItem.summary || '')}
+                              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1 rounded text-xs text-emerald-300"
+                            >
+                              {isPlayingAudio ? '⏹️ Arrêter' : '🔊 Écouter'}
+                            </button>
+                            <button
+                              onClick={() => handleExportPDF(selectedHistoryItem.title, selectedHistoryItem.subject, selectedHistoryItem.summary)}
+                              className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1 rounded text-xs"
+                            >
+                              📄 Exporter PDF
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedHistoryItem.summary && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold uppercase text-emerald-400">Résumé Complet :</h4>
+                            <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-slate-900 p-3 rounded border border-slate-800">
+                              {selectedHistoryItem.summary}
+                            </p>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.qa && selectedHistoryItem.qa.length > 0 && (
+                          <div className="space-y-2 pt-2">
+                            <h4 className="text-xs font-bold uppercase text-purple-400">Questions & Réponses :</h4>
+                            {selectedHistoryItem.qa.map((q, idx) => (
+                              <div key={idx} className="bg-slate-900 p-2.5 rounded border border-slate-800 text-xs">
+                                <p className="font-semibold text-purple-300">Q: {q.question}</p>
+                                <p className="text-slate-300 mt-0.5">R: {q.answer}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500 text-sm">
+                        <span>👈 Sélectionnez un résumé dans la liste à gauche pour le lire en entier, l'écouter ou l'exporter en PDF.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+      </main>
     </div>
   );
 }
