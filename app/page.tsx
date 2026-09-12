@@ -232,25 +232,43 @@ export default function SamnoteWorkspace() {
     }
   };
 
+  // FONCTION CORRIGÉE POUR RECHERCHER DES IMAGES RÉELLES WIKIPEDIA / WIKIMEDIA
   const fetchRealImage = async (term: string): Promise<string> => {
     try {
-      const wikiRes = await fetch(
-        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&search=${encodeURIComponent(
-          term + ' electronic component'
-        )}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=600&format=json&origin=*`
+      // 1. Recherche Wikipédia Français
+      const wikiFrRes = await fetch(
+        `https://fr.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(
+          term
+        )}&prop=pageimages&pithumbsize=800&format=json&origin=*`
       );
-      const wikiData = await wikiRes.json();
-      if (wikiData.query && wikiData.query.pages) {
-        const pages = wikiData.query.pages;
+      const wikiFrData = await wikiFrRes.json();
+      if (wikiFrData.query?.pages) {
+        const pages = wikiFrData.query.pages;
+        const firstKey = Object.keys(pages)[0];
+        if (firstKey !== '-1' && pages[firstKey]?.thumbnail?.source) {
+          return pages[firstKey].thumbnail.source;
+        }
+      }
+
+      // 2. Recherche Wikimedia Commons
+      const commonsRes = await fetch(
+        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(
+          term + ' electronic component'
+        )}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=800&format=json&origin=*`
+      );
+      const commonsData = await commonsRes.json();
+      if (commonsData.query?.pages) {
+        const pages = commonsData.query.pages;
         const firstKey = Object.keys(pages)[0];
         if (pages[firstKey]?.thumbnail?.source) {
           return pages[firstKey].thumbnail.source;
         }
       }
     } catch (e) {
-      console.error("Erreur Wikimedia Image:", e);
+      console.error("Erreur récupération image réelle :", e);
     }
-    return `https://image.pollinations.ai/prompt/high%20resolution%20real%20photo%20of%20electronic%20${encodeURIComponent(term)}%20component%20lab?width=600&height=400&nologo=true`;
+
+    return '';
   };
 
   const handleGenerate = async () => {
@@ -319,7 +337,7 @@ export default function SamnoteWorkspace() {
     setSearchLoading(true);
 
     try {
-      const promptSearch = `Recherche approfondie pour le composant "${searchQuery}" en ${currentSubject}.`;
+      const promptSearch = `Explication claire, définition et fonctionnement du composant ou concept "${searchQuery}" pour un étudiant en ${currentSubject}.`;
       
       const realImgUrl = await fetchRealImage(searchQuery);
 
@@ -438,22 +456,42 @@ export default function SamnoteWorkspace() {
               </button>
             </div>
 
-            {/* RÉSULTAT DE RECHERCHE AVEC VRAIE PHOTO */}
+            {/* RÉSULTAT DE RECHERCHE AVEC VRAIE PHOTO & LIEN GOOGLE */}
             {searchResult && (
               <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-5 relative">
                 <button onClick={() => setSearchResult(null)} className="absolute top-3 right-3 text-slate-400 hover:text-white">✕</button>
-                <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Photo & Fiche Technique Réelle : {searchResult.term}</h2>
+                <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Photo & Fiche Technique : {searchResult.term}</h2>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-center">
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-300">📖 Description :</h3>
+                      <h3 className="text-sm font-semibold text-slate-300">📖 Description & Fonctionnement :</h3>
                       <p className="text-sm text-slate-200 mt-1">{searchResult.definition}</p>
                     </div>
+
+                    {/* LIEN DE RECHERCHE DIRECTE GOOGLE IMAGES */}
+                    <a
+                      href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(searchResult.term + ' composant electronique')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-xs font-semibold text-blue-400 hover:underline bg-blue-950/60 border border-blue-700 px-3.5 py-2.5 rounded-lg transition-all"
+                    >
+                      🔍 Voir toutes les vraies photos sur Google Images ↗
+                    </a>
                   </div>
-                  {searchResult.imageUrl && (
-                    <div className="bg-slate-950 p-2 rounded-lg border border-slate-800 flex flex-col items-center">
-                      <img src={searchResult.imageUrl} alt={searchResult.term} className="max-h-64 object-contain rounded-lg" />
-                      <span className="text-[11px] text-slate-400 mt-2">Source / Image exacte du composant</span>
+
+                  {searchResult.imageUrl ? (
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex flex-col items-center">
+                      <img 
+                        src={searchResult.imageUrl} 
+                        alt={searchResult.term} 
+                        className="max-h-64 object-contain rounded-lg"
+                      />
+                      <span className="text-[11px] text-slate-400 mt-2">Source : Wikipédia / Wikimedia Commons</span>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-950 p-6 rounded-lg border border-slate-800 text-center text-slate-400 text-xs">
+                      Aucune image Wikipédia directe trouvée. Cliquez sur le bouton Google Images ci-contre pour voir les photos exactes.
                     </div>
                   )}
                 </div>
@@ -747,51 +785,42 @@ export default function SamnoteWorkspace() {
                   <div className="md:col-span-2 bg-slate-950 p-4 rounded-lg border border-slate-800 min-h-[300px]">
                     {selectedHistoryItem ? (
                       <div className="space-y-4">
-                        <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
-                          <div>
-                            <h3 className="text-lg font-bold text-blue-400">{selectedHistoryItem.title}</h3>
-                            <p className="text-xs text-slate-400">Matière : {selectedHistoryItem.subject} — Date : {selectedHistoryItem.date}</p>
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => toggleAudio(selectedHistoryItem.summary || '')}
-                              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1 rounded text-xs text-emerald-300"
-                            >
-                              {isPlayingAudio ? '⏹️ Arrêter' : '🔊 Écouter'}
-                            </button>
-                            <button
-                              onClick={() => handleExportPDF(selectedHistoryItem.title, selectedHistoryItem.subject, selectedHistoryItem.summary)}
-                              className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1 rounded text-xs"
-                            >
-                              📄 Exporter PDF
-                            </button>
-                          </div>
+                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                          <h3 className="text-md font-bold text-blue-400">{selectedHistoryItem.title}</h3>
+                          <button
+                            onClick={() => handleExportPDF(selectedHistoryItem.title, selectedHistoryItem.subject, selectedHistoryItem.summary)}
+                            className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1 rounded text-xs"
+                          >
+                            📄 Exporter PDF
+                          </button>
                         </div>
 
                         {selectedHistoryItem.summary && (
-                          <div className="space-y-2">
-                            <h4 className="text-xs font-bold uppercase text-emerald-400">Résumé Complet :</h4>
-                            <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-slate-900 p-3 rounded border border-slate-800">
+                          <div>
+                            <h4 className="text-xs font-semibold text-emerald-400 mb-1">📘 Résumé :</h4>
+                            <p className="text-xs text-slate-300 whitespace-pre-line bg-slate-900 p-3 rounded border border-slate-800">
                               {selectedHistoryItem.summary}
                             </p>
                           </div>
                         )}
 
                         {selectedHistoryItem.qa && selectedHistoryItem.qa.length > 0 && (
-                          <div className="space-y-2 pt-2">
-                            <h4 className="text-xs font-bold uppercase text-purple-400">Questions & Réponses :</h4>
-                            {selectedHistoryItem.qa.map((q, idx) => (
-                              <div key={idx} className="bg-slate-900 p-2.5 rounded border border-slate-800 text-xs">
-                                <p className="font-semibold text-purple-300">Q: {q.question}</p>
-                                <p className="text-slate-300 mt-0.5">R: {q.answer}</p>
-                              </div>
-                            ))}
+                          <div>
+                            <h4 className="text-xs font-semibold text-purple-400 mb-2">❓ Questions & Réponses :</h4>
+                            <div className="space-y-2">
+                              {selectedHistoryItem.qa.map((q, idx) => (
+                                <div key={idx} className="bg-slate-900 p-2.5 rounded border border-slate-800 text-xs">
+                                  <p className="font-semibold text-purple-300">Q: {q.question}</p>
+                                  <p className="text-slate-300 mt-0.5">R: {q.answer}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500 text-sm">
-                        <span>👈 Sélectionnez un résumé dans la liste à gauche pour le lire en entier, l'écouter ou l'exporter en PDF.</span>
+                      <div className="flex items-center justify-center h-full text-xs text-slate-500 italic py-12">
+                        Sélectionnez un élément dans la liste de gauche pour afficher ses détails.
                       </div>
                     )}
                   </div>
