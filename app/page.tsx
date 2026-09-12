@@ -34,22 +34,25 @@ interface SavedReference {
   date: string;
   type: string;
   content: string;
+  imageDataUrl?: string;
   summary?: string;
+  qa?: QAItem[];
+  quiz?: QuizItem[];
 }
 
 export default function SamnoteWorkspace() {
   const subjectsList = [
-    'Électricité',
-    'Électronique Analogique',
-    'Électronique Numérique',
-    'Mesures Électroniques',
-    'Automatisme',
-    'Technologie',
-    'Utilisation',
-    'TP (Travaux Pratiques)',
-    'Dessin Technique',
-    'Gestion',
-    'Droit'
+    { name: 'Électricité', icon: '⚡' },
+    { name: 'Électronique Analogique', icon: '📻' },
+    { name: 'Électronique Numérique', icon: '🔢' },
+    { name: 'Mesures Électroniques', icon: '📏' },
+    { name: 'Automatisme', icon: '⚙️' },
+    { name: 'Technologie', icon: '🛠️' },
+    { name: 'Utilisation', icon: '🔌' },
+    { name: 'TP (Travaux Pratiques)', icon: '🔬' },
+    { name: 'Dessin Technique', icon: '📐' },
+    { name: 'Gestion', icon: '📊' },
+    { name: 'Droit', icon: '⚖️' }
   ];
 
   const [currentSubject, setCurrentSubject] = useState<string>('Électricité');
@@ -60,19 +63,23 @@ export default function SamnoteWorkspace() {
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
-  // Nouveaux états : Devoirs de Référence & Historique
+  // Devs & Références
   const [refTitle, setRefTitle] = useState<string>('');
-  const [refType, setRefType] = useState<string>('Devoir');
+  const [refType, setRefType] = useState<string>('Cours de Référence');
+  const [refContentText, setRefContentText] = useState<string>('');
+  const [refImageData, setRefImageData] = useState<string>('');
+  const [refSubject, setRefSubject] = useState<string>('Électricité');
+
   const [references, setReferences] = useState<SavedReference[]>([]);
   const [history, setHistory] = useState<SavedReference[]>([]);
+  const [selectedHistoryItem, setSelectedHistoryItem] = useState<SavedReference | null>(null);
 
-  // Gestion de l'audio
+  // Audio & Quiz
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
-  
-  // Réponses du quiz
   const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
   
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const refPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [subjectData, setSubjectData] = useState<Record<string, {
     summary?: string;
@@ -83,7 +90,6 @@ export default function SamnoteWorkspace() {
 
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
 
-  // Charger l'historique et les références enregistrées au démarrage
   useEffect(() => {
     const savedHist = localStorage.getItem('samnote_history');
     if (savedHist) setHistory(JSON.parse(savedHist));
@@ -94,57 +100,84 @@ export default function SamnoteWorkspace() {
 
   const handleSubjectChange = (subject: string) => {
     setCurrentSubject(subject);
+    setRefSubject(subject);
     setSearchResult(null);
     setUserAnswers({});
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     setIsPlayingAudio(false);
   };
 
-  // Importation Fichier Photo / PDF / Texte
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.type.startsWith('text/') || file.name.endsWith('.txt')) {
       const reader = new FileReader();
-      reader.onload = (event) => {
-        setInputText(event.target?.result as string || '');
-      };
+      reader.onload = (event) => setInputText(event.target?.result as string || '');
       reader.readAsText(file);
     } else {
-      setInputText(`[Document / Image importée : ${file.name}]\nSaisissez les détails de ce cours ou schéma pour l'analyse...`);
+      setInputText(`[Document / Image chargée : ${file.name}]\nSaisissez des détails supplémentaires pour l'analyse...`);
     }
   };
 
-  // Enregistrer comme Devoir de Référence
+  const handleRefPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setRefImageData(event.target?.result as string || '');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveReference = () => {
-    if (!inputText.trim() && !refTitle.trim()) {
-      alert("Veuillez saisir un titre et le contenu du devoir de référence.");
+    if (!refTitle.trim()) {
+      alert("Veuillez saisir un titre pour ce document de référence.");
+      return;
+    }
+
+    if (!refContentText.trim() && !refImageData) {
+      alert("Veuillez ajouter du texte ou prendre une photo de votre cours/devoir.");
       return;
     }
 
     const newRef: SavedReference = {
       id: Date.now().toString(),
-      title: refTitle || `Référence - ${currentSubject}`,
-      subject: currentSubject,
+      title: refTitle,
+      subject: refSubject,
       date: new Date().toLocaleDateString('fr-FR'),
       type: refType,
-      content: inputText,
-      summary: subjectData[currentSubject]?.summary || ''
+      content: refContentText || '(Référence visuelle par photo)',
+      imageDataUrl: refImageData,
     };
 
     const updated = [newRef, ...references];
     setReferences(updated);
     localStorage.setItem('samnote_references', JSON.stringify(updated));
+    
     setRefTitle('');
-    alert("Devoir de référence enregistré avec succès !");
+    setRefContentText('');
+    setRefImageData('');
+    alert("Cours / Devoir de référence enregistré !");
   };
 
-  // Exporter en PDF / Document Imprimable
-  const handleExportPDF = () => {
-    const summaryText = subjectData[currentSubject]?.summary;
+  const handleDeleteReference = (id: string) => {
+    const updated = references.filter(r => r.id !== id);
+    setReferences(updated);
+    localStorage.setItem('samnote_references', JSON.stringify(updated));
+  };
+
+  const handleDeleteHistory = (id: string) => {
+    const updated = history.filter(h => h.id !== id);
+    setHistory(updated);
+    localStorage.setItem('samnote_history', JSON.stringify(updated));
+    if (selectedHistoryItem?.id === id) setSelectedHistoryItem(null);
+  };
+
+  const handleExportPDF = (title: string, subject: string, summaryText?: string) => {
     if (!summaryText) {
-      alert("Aucun résumé à exporter. Veuillez d'abord générer un contenu.");
+      alert("Aucun résumé disponible pour l'exportation.");
       return;
     }
 
@@ -154,23 +187,24 @@ export default function SamnoteWorkspace() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>Export PDF - Samnote (${currentSubject})</title>
+          <title>Export PDF - Samnote (${subject})</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 20px; color: #1e293b; line-height: 1.6; }
-            h1 { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 8px; }
-            h2 { color: #059669; margin-top: 20px; }
-            .box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 15px; }
-            .footer { margin-top: 30px; font-size: 12px; color: #64748b; text-align: center; }
+            body { font-family: Arial, sans-serif; padding: 25px; color: #1e293b; line-height: 1.6; }
+            h1 { color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 8px; margin-bottom: 5px; }
+            .meta { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+            .box { background: #f8fafc; border: 1px solid #cbd5e1; padding: 18px; border-radius: 8px; margin-bottom: 20px; }
+            h2 { color: #059669; margin-top: 0; }
+            .footer { margin-top: 40px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
           </style>
         </head>
         <body>
-          <h1>⚡ Samnote - Fiche de Révision : ${currentSubject}</h1>
-          <p><strong>Date d'export :</strong> ${new Date().toLocaleDateString('fr-FR')}</p>
+          <h1>⚡ Samnote - ${title}</h1>
+          <div class="meta">Matière : <strong>${subject}</strong> | Date : ${new Date().toLocaleDateString('fr-FR')}</div>
           <div class="box">
-            <h2>📘 Résumé du Cours</h2>
+            <h2>📘 Résumé Complet du Cours</h2>
             <p>${summaryText.replace(/\n/g, '<br/>')}</p>
           </div>
-          <div class="footer">Document généré par Samnote - Électronique & Automatismes</div>
+          <div class="footer">Document d'étude généré et conservé par Samnote (BP Électronique & Automatisme)</div>
         </body>
       </html>
     `);
@@ -179,10 +213,9 @@ export default function SamnoteWorkspace() {
     printWindow.print();
   };
 
-  // Synthèse vocale Audio
   const toggleAudio = (textToRead: string) => {
     if (!('speechSynthesis' in window)) {
-      alert("La synthèse vocale n'est pas supportée par votre navigateur.");
+      alert("La synthèse vocale n'est pas disponible sur votre appareil.");
       return;
     }
 
@@ -199,20 +232,47 @@ export default function SamnoteWorkspace() {
     }
   };
 
-  // Génération principale via l'API Gemini 3.6
+  const fetchRealImage = async (term: string): Promise<string> => {
+    try {
+      const wikiRes = await fetch(
+        `https://commons.wikimedia.org/w/api.php?action=query&generator=search&search=${encodeURIComponent(
+          term + ' electronic component'
+        )}&gsrlimit=1&prop=pageimages&piprop=thumbnail&pithumbsize=600&format=json&origin=*`
+      );
+      const wikiData = await wikiRes.json();
+      if (wikiData.query && wikiData.query.pages) {
+        const pages = wikiData.query.pages;
+        const firstKey = Object.keys(pages)[0];
+        if (pages[firstKey]?.thumbnail?.source) {
+          return pages[firstKey].thumbnail.source;
+        }
+      }
+    } catch (e) {
+      console.error("Erreur Wikimedia Image:", e);
+    }
+    return `https://image.pollinations.ai/prompt/high%20resolution%20real%20photo%20of%20electronic%20${encodeURIComponent(term)}%20component%20lab?width=600&height=400&nologo=true`;
+  };
+
   const handleGenerate = async () => {
     if (!inputText.trim()) {
-      alert("Veuillez saisir un texte ou importer un fichier.");
+      alert("Veuillez saisir un texte de cours.");
       return;
     }
     setLoading(true);
     setUserAnswers({});
 
+    const subjectRefs = references
+      .filter(r => r.subject === currentSubject)
+      .map(r => `[RÉFÉRENCE: ${r.title}] ${r.content}`)
+      .join('\n');
+
+    const promptCombined = `[Matière : ${currentSubject}]\n${subjectRefs ? `--- ÉLÉMENTS DE RÉFÉRENCE REGISTRÉS ---\n${subjectRefs}\n-----------------------------------\n` : ''}${inputText}`;
+
     try {
       const res = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `[Matière : ${currentSubject}]\n${inputText}` }),
+        body: JSON.stringify({ prompt: promptCombined }),
       });
 
       const data = await res.json();
@@ -228,15 +288,16 @@ export default function SamnoteWorkspace() {
           }
         }));
 
-        // Sauvegarde dans l'Historique
         const newHistItem: SavedReference = {
           id: Date.now().toString(),
-          title: `Fiche ${currentSubject}`,
+          title: `Résumé : ${currentSubject} (${new Date().toLocaleDateString('fr-FR')})`,
           subject: currentSubject,
           date: new Date().toLocaleDateString('fr-FR'),
           type: 'Génération IA',
           content: inputText,
-          summary: data.summary
+          summary: data.summary,
+          qa: data.qa,
+          quiz: data.quiz
         };
 
         const updatedHist = [newHistItem, ...history];
@@ -244,7 +305,7 @@ export default function SamnoteWorkspace() {
         localStorage.setItem('samnote_history', JSON.stringify(updatedHist));
 
       } else {
-        alert(data.error || "Une erreur est survenue lors de la génération.");
+        alert(data.error || "Erreur de génération.");
       }
     } catch (err) {
       alert("Erreur de connexion avec le serveur.");
@@ -253,14 +314,15 @@ export default function SamnoteWorkspace() {
     }
   };
 
-  // Moteur de Recherche Avancé
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
     setSearchLoading(true);
 
     try {
-      const promptSearch = `Recherche approfondie pour le composant ou la notion "${searchQuery}" dans la matière ${currentSubject}. Donne la définition, le fonctionnement et des caractéristiques techniques.`;
+      const promptSearch = `Recherche approfondie pour le composant "${searchQuery}" en ${currentSubject}.`;
       
+      const realImgUrl = await fetchRealImage(searchQuery);
+
       const res = await fetch('/api/generate-quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -274,26 +336,12 @@ export default function SamnoteWorkspace() {
           term: searchQuery,
           definition: data.summary,
           howItWorks: data.qa && data.qa[0] ? `${data.qa[0].question} : ${data.qa[0].answer}` : `Fonctionnement de ${searchQuery}.`,
-          characteristics: data.quiz ? data.quiz.map((q: QuizItem) => q.question) : ['Haute précision', 'Norme standard'],
-          imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20schematic%20diagram%20of%20${encodeURIComponent(searchQuery)}%20electronic%20component?width=700&height=450&nologo=true`
-        });
-      } else {
-        setSearchResult({
-          term: searchQuery,
-          definition: `Étude technique de "${searchQuery}" en ${currentSubject}.`,
-          howItWorks: `Principe de fonctionnement et rôle dans les circuits.`,
           characteristics: ['Spécifications techniques'],
-          imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20schematic%20diagram%20of%20${encodeURIComponent(searchQuery)}?width=700&height=450&nologo=true`
+          imageUrl: realImgUrl
         });
       }
     } catch (err) {
-      setSearchResult({
-        term: searchQuery,
-        definition: `Détails techniques sur "${searchQuery}".`,
-        howItWorks: `Spécifications et applications.`,
-        characteristics: ['Généralités'],
-        imageUrl: `https://image.pollinations.ai/prompt/technical%20drawing%20schematic%20diagram%20of%20${encodeURIComponent(searchQuery)}?width=700&height=450&nologo=true`
-      });
+      console.error(err);
     } finally {
       setSearchLoading(false);
     }
@@ -323,7 +371,7 @@ export default function SamnoteWorkspace() {
               activeTab === 'workspace' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
-            📁 Espace de Travail
+            📋 Espace de Travail
           </button>
           <button
             onClick={() => setActiveTab('references')}
@@ -331,7 +379,7 @@ export default function SamnoteWorkspace() {
               activeTab === 'references' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
-            📑 Devoirs de Référence
+            📑 Cours & Devoirs Référence
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -339,26 +387,27 @@ export default function SamnoteWorkspace() {
               activeTab === 'history' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
-            📜 Historique
+            📜 Historique Complet ({history.length})
           </button>
         </div>
 
-        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières</p>
-        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 max-h-[35vh] md:max-h-none overflow-y-auto">
+        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières & Filières</p>
+        <div className="flex md:flex-col overflow-x-auto md:overflow-visible gap-1 pb-2 md:pb-0 max-h-[40vh] md:max-h-none overflow-y-auto">
           {subjectsList.map((sub) => (
             <button
-              key={sub}
+              key={sub.name}
               onClick={() => {
-                handleSubjectChange(sub);
+                handleSubjectChange(sub.name);
                 setActiveTab('workspace');
               }}
-              className={`px-3 py-2 rounded-lg text-sm text-left whitespace-nowrap transition-colors ${
-                currentSubject === sub && activeTab === 'workspace'
+              className={`px-3 py-2 rounded-lg text-sm text-left whitespace-nowrap transition-colors flex items-center gap-2 ${
+                currentSubject === sub.name && activeTab === 'workspace'
                   ? 'bg-blue-600/30 text-blue-400 font-medium border border-blue-500/40'
                   : 'text-slate-300 hover:bg-slate-800'
               }`}
             >
-              📂 {sub}
+              <span>{sub.icon}</span>
+              <span>{sub.name}</span>
             </button>
           ))}
         </div>
@@ -367,14 +416,14 @@ export default function SamnoteWorkspace() {
       {/* ZONE DE CONTENU PRINCIPAL */}
       <main className="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto">
         
-        {/* VUE 1 : ESPACE DE TRAVAIL PRINCIPAL */}
+        {/* VUE 1 : ESPACE DE TRAVAIL */}
         {activeTab === 'workspace' && (
           <>
-            {/* BARRE DE RECHERCHE */}
+            {/* RECHERCHE COMPOSANTS */}
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
-                placeholder={`Rechercher un composant ou un terme dans ${currentSubject}...`}
+                placeholder={`Rechercher la photo réelle d'un composant (ex: Diode 1N4007, Transistor 2N2222, NE555)...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -385,147 +434,85 @@ export default function SamnoteWorkspace() {
                 disabled={searchLoading}
                 className="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-lg text-sm font-medium transition-colors"
               >
-                {searchLoading ? 'Recherche...' : '🔍 Rechercher'}
+                {searchLoading ? 'Recherche...' : '🔍 Rechercher Photo Réelle'}
               </button>
             </div>
 
-            {/* RÉSULTAT DE RECHERCHE */}
+            {/* RÉSULTAT DE RECHERCHE AVEC VRAIE PHOTO */}
             {searchResult && (
               <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-5 relative">
-                <button 
-                  onClick={() => setSearchResult(null)}
-                  className="absolute top-3 right-3 text-slate-400 hover:text-white"
-                >
-                  ✕
-                </button>
-                <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Fiche Technique : {searchResult.term}</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+                <button onClick={() => setSearchResult(null)} className="absolute top-3 right-3 text-slate-400 hover:text-white">✕</button>
+                <h2 className="text-xl font-bold text-blue-400 mb-2">💡 Photo & Fiche Technique Réelle : {searchResult.term}</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 items-center">
                   <div className="space-y-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-slate-300">📖 Définition :</h3>
+                      <h3 className="text-sm font-semibold text-slate-300">📖 Description :</h3>
                       <p className="text-sm text-slate-200 mt-1">{searchResult.definition}</p>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-300">⚙️ Fonctionnement :</h3>
-                      <p className="text-sm text-slate-200 mt-1">{searchResult.howItWorks}</p>
-                    </div>
                   </div>
-
                   {searchResult.imageUrl && (
-                    <div className="flex flex-col items-center">
-                      <span className="text-xs text-slate-400 mb-2">Schéma Technique</span>
-                      <img
-                        src={searchResult.imageUrl}
-                        alt={searchResult.term}
-                        className="w-full h-48 object-cover rounded-lg border border-slate-700"
-                      />
+                    <div className="bg-slate-950 p-2 rounded-lg border border-slate-800 flex flex-col items-center">
+                      <img src={searchResult.imageUrl} alt={searchResult.term} className="max-h-64 object-contain rounded-lg" />
+                      <span className="text-[11px] text-slate-400 mt-2">Source / Image exacte du composant</span>
                     </div>
                   )}
                 </div>
               </section>
             )}
 
-            {/* SAISIE, IMPORTATION & DEVOIR DE RÉFÉRENCE */}
+            {/* FORMULAIRE DE SAISIE */}
             <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
               <h2 className="text-md font-semibold text-slate-200">
-                Saisie & Importation — <span className="text-blue-400">{currentSubject}</span>
+                Saisie & Analyse — <span className="text-blue-400">{currentSubject}</span>
               </h2>
               
               <textarea
                 rows={4}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Saisissez le cours ou collez les éléments de votre devoir pour la matière ${currentSubject}...`}
+                placeholder={`Saisissez le texte du cours pour générer le résumé interactif...`}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
               />
 
-              {/* BOUTONS D'ACTION : IMPORTATION & ENREGISTREMENT RÉFÉRENCE */}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept="image/*,.pdf,.txt"
-                  className="hidden"
-                />
+                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*,.pdf,.txt" className="hidden" />
                 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors"
-                  >
-                    📷 Importer Photo / PDF
-                  </button>
-                </div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-1.5"
+                >
+                  📷 Importer Fichier / Photo
+                </button>
 
                 <button
                   onClick={handleGenerate}
                   disabled={loading}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
-                  {loading ? 'Analyse Gemini 3.6...' : '⚡ Générer Résumé, Q&R & Quiz'}
-                </button>
-              </div>
-
-              {/* SECTION ENREGISTRER COMME RÉFÉRENCE */}
-              <div className="border-t border-slate-800 pt-3 mt-3 flex flex-col sm:flex-row gap-2 items-center">
-                <input
-                  type="text"
-                  placeholder="Titre du Devoir de Référence (ex: Devoir Électricité N°1)..."
-                  value={refTitle}
-                  onChange={(e) => setRefTitle(e.target.value)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500"
-                />
-                <select
-                  value={refType}
-                  onChange={(e) => setRefType(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300"
-                >
-                  <option value="Devoir">Devoir</option>
-                  <option value="TP">Travaux Pratiques (TP)</option>
-                  <option value="Examen">Examen / Évaluation</option>
-                  <option value="Cours">Cours de Référence</option>
-                </select>
-                <button
-                  onClick={handleSaveReference}
-                  className="bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/40 text-blue-300 px-4 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                >
-                  💾 Enregistrer Référence
+                  {loading ? 'Analyse en cours...' : '⚡ Générer & Enregistrer dans l\'Historique'}
                 </button>
               </div>
             </section>
 
-            {/* RÉSUMÉ & EXPORTATION PDF */}
+            {/* RÉSULTAT DU COURS GENERÉ */}
             {currentData.summary && (
               <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
                 <div className="flex flex-wrap justify-between items-center gap-2">
-                  <h2 className="text-lg font-bold text-emerald-400">📘 Résumé du Cours ({currentSubject})</h2>
-                  
+                  <h2 className="text-lg font-bold text-emerald-400">📘 Résumé ({currentSubject})</h2>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => toggleAudio(currentData.summary || '')}
-                      className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-300 flex items-center gap-1.5"
-                    >
-                      {isPlayingAudio ? '⏹️ Arrêter' : '🔊 Écouter Audio'}
+                    <button onClick={() => toggleAudio(currentData.summary || '')} className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-300">
+                      {isPlayingAudio ? '⏹️ Arrêter Audio' : '🔊 Écouter Audio'}
                     </button>
-
-                    <button
-                      onClick={handleExportPDF}
-                      className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5"
-                    >
+                    <button onClick={() => handleExportPDF(`Fiche ${currentSubject}`, currentSubject, currentData.summary)} className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg text-xs font-medium">
                       📄 Exporter PDF
                     </button>
                   </div>
                 </div>
-                
-                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">
-                  {currentData.summary}
-                </p>
+                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-line">{currentData.summary}</p>
               </section>
             )}
 
-            {/* QUESTIONS / RÉPONSES */}
+            {/* QUESTIONS & RÉPONSES */}
             {currentData.qa && currentData.qa.length > 0 && (
               <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
                 <h2 className="text-lg font-bold text-purple-400 mb-4">❓ Questions & Réponses</h2>
@@ -540,30 +527,10 @@ export default function SamnoteWorkspace() {
               </section>
             )}
 
-            {/* DESSINS TECHNIQUES ET IMAGES */}
-            {currentData.illustrations && currentData.illustrations.length > 0 && (
-              <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <h2 className="text-lg font-bold text-amber-400 mb-4">🎨 Schémas & Dessins Techniques</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {currentData.illustrations.map((item, idx) => (
-                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                      <h3 className="text-sm font-bold text-slate-200 mb-1">{item.name}</h3>
-                      <p className="text-xs text-slate-400 mb-2">{item.description}</p>
-                      <img
-                        src={`https://image.pollinations.ai/prompt/${encodeURIComponent(item.imagePrompt || item.name)}?width=600&height=400&nologo=true`}
-                        alt={item.name}
-                        className="w-full h-44 object-cover rounded border border-slate-800"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* QUIZ INTERACTIF VERT / ROUGE */}
+            {/* QUIZ INTERACTIF */}
             {currentData.quiz && currentData.quiz.length > 0 && (
               <section className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-                <h2 className="text-lg font-bold text-blue-400 mb-4">📝 Quiz de Révision</h2>
+                <h2 className="text-lg font-bold text-blue-400 mb-4">📝 Quiz d'Évaluation</h2>
                 <div className="space-y-5">
                   {currentData.quiz.map((q, qIdx) => {
                     const selectedOption = userAnswers[qIdx];
@@ -572,11 +539,9 @@ export default function SamnoteWorkspace() {
                     return (
                       <div key={qIdx} className="bg-slate-950 p-4 rounded-lg border border-slate-800">
                         <p className="text-sm font-medium mb-3 text-slate-200">{qIdx + 1}. {q.question}</p>
-
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {q.options.map((opt, optIdx) => {
                             let btnStyle = "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800";
-                            
                             if (isAnswered) {
                               if (optIdx === q.correctIndex) {
                                 btnStyle = "bg-emerald-600/30 border-emerald-500 text-emerald-300 font-bold";
@@ -586,7 +551,6 @@ export default function SamnoteWorkspace() {
                                 btnStyle = "bg-slate-900/40 text-slate-500 border-slate-800 opacity-60";
                               }
                             }
-
                             return (
                               <button
                                 key={optIdx}
@@ -607,73 +571,234 @@ export default function SamnoteWorkspace() {
           </>
         )}
 
-        {/* VUE 2 : DEVOIRS DE RÉFÉRENCE */}
+        {/* VUE 2 : COURS & DEVOIRS DE RÉFÉRENCE */}
         {activeTab === 'references' && (
-          <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <h2 className="text-xl font-bold text-blue-400">📑 Devoirs & Documents de Référence</h2>
-            <p className="text-xs text-slate-400">Consultez vos devoirs, TP et cours enregistrés comme références de travail.</p>
+          <div className="space-y-6">
+            <section className="bg-slate-900 border border-blue-500/30 rounded-xl p-5 space-y-4">
+              <h2 className="text-xl font-bold text-blue-400 flex items-center gap-2">
+                ➕ Enregistrer un Cours ou Devoir de Référence
+              </h2>
 
-            {references.length === 0 ? (
-              <p className="text-sm text-slate-500 italic py-6 text-center">Aucun devoir de référence enregistré pour le moment.</p>
-            ) : (
-              <div className="space-y-3">
-                {references.map((item) => (
-                  <div key={item.id} className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-md font-bold text-slate-200">{item.title}</h3>
-                      <span className="text-xs bg-blue-600/20 text-blue-400 px-2.5 py-1 rounded-full border border-blue-500/30">
-                        {item.type} • {item.subject}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400">Ajouté le {item.date}</p>
-                    <p className="text-xs text-slate-300 bg-slate-900 p-3 rounded border border-slate-800 line-clamp-3">
-                      {item.content}
-                    </p>
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  placeholder="Titre du document..."
+                  value={refTitle}
+                  onChange={(e) => setRefTitle(e.target.value)}
+                  className="sm:col-span-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                />
+
+                <select
+                  value={refSubject}
+                  onChange={(e) => setRefSubject(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300"
+                >
+                  {subjectsList.map(s => <option key={s.name} value={s.name}>{s.icon} {s.name}</option>)}
+                </select>
+
+                <select
+                  value={refType}
+                  onChange={(e) => setRefType(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300"
+                >
+                  <option value="Cours de Référence">Cours de Référence</option>
+                  <option value="Devoir de Référence">Devoir de Référence</option>
+                  <option value="Travaux Pratiques (TP)">Travaux Pratiques (TP)</option>
+                </select>
               </div>
-            )}
-          </section>
+
+              <textarea
+                rows={3}
+                placeholder="Texte de cours / devoir..."
+                value={refContentText}
+                onChange={(e) => setRefContentText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
+              />
+
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-950 p-4 rounded-lg border border-slate-800">
+                <input
+                  type="file"
+                  ref={refPhotoInputRef}
+                  onChange={handleRefPhotoUpload}
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => refPhotoInputRef.current?.click()}
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-300 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2"
+                  >
+                    📸 Prenez une Photo Directe
+                  </button>
+
+                  {refImageData && (
+                    <span className="text-xs text-emerald-400 font-medium">✓ Photo prête</span>
+                  )}
+                </div>
+
+                <button
+                  onClick={handleSaveReference}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  💾 Sauvegarder
+                </button>
+              </div>
+            </section>
+
+            {/* LISTE DES RÉFÉRENCES */}
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <h2 className="text-xl font-bold text-slate-100">📑 Vos Documents de Référence Enregistrés</h2>
+
+              {references.length === 0 ? (
+                <p className="text-sm text-slate-500 italic py-6 text-center">Aucun cours ni devoir enregistré.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {references.map((item) => (
+                    <div key={item.id} className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-3">
+                      <div className="flex justify-between items-start gap-2">
+                        <h3 className="text-md font-bold text-blue-400">{item.title}</h3>
+                        <button onClick={() => handleDeleteReference(item.id)} className="text-xs text-rose-400 hover:underline">Supprimer</button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <span className="bg-blue-600/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30">{item.subject}</span>
+                        <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded">{item.type}</span>
+                        <span className="text-slate-500 py-0.5">{item.date}</span>
+                      </div>
+
+                      {item.imageDataUrl && (
+                        <img src={item.imageDataUrl} alt={item.title} className="w-full h-40 object-cover rounded border border-slate-800" />
+                      )}
+
+                      {item.content && (
+                        <p className="text-xs text-slate-300 bg-slate-900 p-3 rounded border border-slate-800 whitespace-pre-line">
+                          {item.content}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         )}
 
-        {/* VUE 3 : HISTORIQUE DE GÉNÉRATION */}
+        {/* VUE 3 : HISTORIQUE COMPLET ET LISIBLE */}
         {activeTab === 'history' && (
-          <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold text-emerald-400">📜 Historique des Synthèses</h2>
-              {history.length > 0 && (
-                <button
-                  onClick={() => {
-                    setHistory([]);
-                    localStorage.removeItem('samnote_history');
-                  }}
-                  className="text-xs text-rose-400 hover:underline"
-                >
-                  Effacer l'historique
-                </button>
-              )}
-            </div>
+          <div className="space-y-6">
+            <section className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-emerald-400">📜 Historique des Résumés et Cours</h2>
+                {history.length > 0 && (
+                  <button
+                    onClick={() => {
+                      if (confirm("Voulez-vous supprimer tout l'historique ?")) {
+                        setHistory([]);
+                        localStorage.removeItem('samnote_history');
+                        setSelectedHistoryItem(null);
+                      }
+                    }}
+                    className="text-xs text-rose-400 hover:underline"
+                  >
+                    Vider l'historique
+                  </button>
+                )}
+              </div>
 
-            {history.length === 0 ? (
-              <p className="text-sm text-slate-500 italic py-6 text-center">Votre historique est vide.</p>
-            ) : (
-              <div className="space-y-3">
-                {history.map((item) => (
-                  <div key={item.id} className="bg-slate-950 p-4 rounded-lg border border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-bold text-slate-200">{item.title}</h3>
-                      <span className="text-xs text-slate-400">{item.date}</span>
-                    </div>
-                    {item.summary && (
-                      <p className="text-xs text-slate-300 bg-slate-900 p-2.5 rounded border border-slate-800 line-clamp-3">
-                        {item.summary}
-                      </p>
+              {history.length === 0 ? (
+                <p className="text-sm text-slate-500 italic py-6 text-center">Aucun résumé enregistré dans l'historique.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Liste à gauche */}
+                  <div className="space-y-2 md:col-span-1 border-r border-slate-800 pr-0 md:pr-4">
+                    {history.map((item) => (
+                      <div
+                        key={item.id}
+                        onClick={() => setSelectedHistoryItem(item)}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all ${
+                          selectedHistoryItem?.id === item.id
+                            ? 'bg-blue-600/20 border-blue-500 text-white'
+                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <h3 className="text-xs font-bold text-blue-300">{item.title}</h3>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteHistory(item.id);
+                            }}
+                            className="text-[10px] text-rose-400 hover:underline"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-2">
+                          <span>{item.subject}</span>
+                          <span>{item.date}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Vue détaillée à droite */}
+                  <div className="md:col-span-2 bg-slate-950 p-4 rounded-lg border border-slate-800 min-h-[300px]">
+                    {selectedHistoryItem ? (
+                      <div className="space-y-4">
+                        <div className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-800 pb-3">
+                          <div>
+                            <h3 className="text-lg font-bold text-blue-400">{selectedHistoryItem.title}</h3>
+                            <p className="text-xs text-slate-400">Matière : {selectedHistoryItem.subject} — Date : {selectedHistoryItem.date}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => toggleAudio(selectedHistoryItem.summary || '')}
+                              className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1 rounded text-xs text-emerald-300"
+                            >
+                              {isPlayingAudio ? '⏹️ Arrêter' : '🔊 Écouter'}
+                            </button>
+                            <button
+                              onClick={() => handleExportPDF(selectedHistoryItem.title, selectedHistoryItem.subject, selectedHistoryItem.summary)}
+                              className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1 rounded text-xs"
+                            >
+                              📄 Exporter PDF
+                            </button>
+                          </div>
+                        </div>
+
+                        {selectedHistoryItem.summary && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-bold uppercase text-emerald-400">Résumé Complet :</h4>
+                            <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-line bg-slate-900 p-3 rounded border border-slate-800">
+                              {selectedHistoryItem.summary}
+                            </p>
+                          </div>
+                        )}
+
+                        {selectedHistoryItem.qa && selectedHistoryItem.qa.length > 0 && (
+                          <div className="space-y-2 pt-2">
+                            <h4 className="text-xs font-bold uppercase text-purple-400">Questions & Réponses :</h4>
+                            {selectedHistoryItem.qa.map((q, idx) => (
+                              <div key={idx} className="bg-slate-900 p-2.5 rounded border border-slate-800 text-xs">
+                                <p className="font-semibold text-purple-300">Q: {q.question}</p>
+                                <p className="text-slate-300 mt-0.5">R: {q.answer}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-8 text-slate-500 text-sm">
+                        <span>👈 Sélectionnez un résumé dans la liste à gauche pour le lire en entier, l'écouter ou l'exporter en PDF.</span>
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                </div>
+              )}
+            </section>
+          </div>
         )}
 
       </main>
