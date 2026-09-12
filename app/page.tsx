@@ -52,7 +52,8 @@ export default function SamnoteWorkspace() {
     { name: 'TP (Travaux Pratiques)', icon: '🔬' },
     { name: 'Dessin Technique', icon: '📐' },
     { name: 'Gestion', icon: '📊' },
-    { name: 'Droit', icon: '⚖️' }
+    { name: 'Droit', icon: '⚖️' },
+    { name: 'Sport', icon: '⚽' }
   ];
 
   const [currentSubject, setCurrentSubject] = useState<string>('Électricité');
@@ -76,7 +77,6 @@ export default function SamnoteWorkspace() {
 
   const [references, setReferences] = useState<SavedReference[]>([]);
   const [history, setHistory] = useState<SavedReference[]>([]);
-  const [selectedHistoryItem, setSelectedHistoryItem] = useState<SavedReference | null>(null);
 
   // Audio & Quiz
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
@@ -181,7 +181,6 @@ export default function SamnoteWorkspace() {
     const updated = history.filter(h => h.id !== id);
     setHistory(updated);
     localStorage.setItem('samnote_history', JSON.stringify(updated));
-    if (selectedHistoryItem?.id === id) setSelectedHistoryItem(null);
   };
 
   const handleExportPDF = (title: string, subject: string, summaryText?: string) => {
@@ -386,24 +385,22 @@ export default function SamnoteWorkspace() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans max-w-full overflow-x-hidden">
       
-      {/* 🚀 ÉCRAN DE DÉMARRAGE PLEIN ÉCRAN AVEC VIDÉO */}
+      {/* 🚀 ÉCRAN DE DÉMARRAGE PLEIN ÉCRAN */}
       {showSplashScreen && (
         <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between items-center p-4 md:p-6 text-center select-none">
           
-          {/* Header */}
           <div className="pt-4 md:pt-6 flex flex-col items-center">
-            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-400 flex items-center justify-center text-3xl font-bold text-white shadow-xl shadow-blue-500/20 mb-2 animate-pulse">
+            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-400 flex items-center justify-center text-3xl font-bold text-white shadow-xl shadow-blue-500/20 mb-2">
               ⚡
             </div>
             <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-wide">
               Samnote
             </h1>
             <p className="text-xs text-blue-400 font-medium mt-0.5">
-              Assistant Virtuel en Électronique & Automatisme
+              Assistant Virtuel & Espace de Cours BP Électronique
             </p>
           </div>
 
-          {/* LECTEUR VIDÉO INTERACTIF */}
           <div className="w-full max-w-md my-auto space-y-3">
             <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl aspect-video flex items-center justify-center">
               <video 
@@ -417,19 +414,17 @@ export default function SamnoteWorkspace() {
                 Votre navigateur ne supporte pas la lecture vidéo.
               </video>
             </div>
-
             <p className="text-xs text-slate-400 leading-relaxed px-2">
-              Analyse de cours par photo, recherche de composants et quiz d'évaluation.
+              Plateforme d'apprentissage, résumés de cours, quiz interactifs et fiches techniques.
             </p>
           </div>
 
-          {/* BOUTON D'ACCÈS */}
           <div className="w-full max-w-md pb-4 md:pb-6">
             <button
               onClick={closeSplashScreen}
-              className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white font-bold py-3.5 px-6 rounded-xl text-base shadow-lg transition-all transform active:scale-95"
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 px-6 rounded-xl text-base shadow-lg transition-all transform active:scale-95"
             >
-              Accéder à l'application 🚀
+              Accéder à l'application
             </button>
           </div>
 
@@ -450,13 +445,13 @@ export default function SamnoteWorkspace() {
             onClick={() => setShowSplashScreen(true)}
             className="bg-slate-800 text-blue-400 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
           >
-            🎬 Présentation
+            Présentation
           </button>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="bg-slate-800 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
           >
-            {isMobileMenuOpen ? '✕ Fermer' : '☰ Menu'}
+            {isMobileMenuOpen ? 'Fermer' : 'Menu'}
           </button>
         </div>
       </div>
@@ -484,7 +479,7 @@ export default function SamnoteWorkspace() {
               activeTab === 'workspace' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
-            📋 Espace de Travail
+            Espace de Travail
           </button>
           <button
             onClick={() => { setActiveTab('references'); setIsMobileMenuOpen(false); }}
@@ -492,7 +487,7 @@ export default function SamnoteWorkspace() {
               activeTab === 'references' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
-            📑 Cours & Devoirs Référence
+            Cours & Devoirs Référence
           </button>
           <button
             onClick={() => { setActiveTab('history'); setIsMobileMenuOpen(false); }}
@@ -500,7 +495,7 @@ export default function SamnoteWorkspace() {
               activeTab === 'history' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
             }`}
           >
-            📜 Historique Complet ({history.length})
+            Historique ({history.length})
           </button>
         </div>
 
@@ -534,7 +529,7 @@ export default function SamnoteWorkspace() {
               <div className="relative flex-1 w-full">
                 <input
                   type="text"
-                  placeholder={`Rechercher un composant (ex: Diode 1N4007, NE555)...`}
+                  placeholder={`Rechercher un composant ou concept (ex: Diode, Transistor)...`}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -544,9 +539,8 @@ export default function SamnoteWorkspace() {
                   <button
                     onClick={clearSearch}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white bg-slate-800 px-2 py-0.5 rounded-full text-xs"
-                    title="Vider la recherche"
                   >
-                    ✕ Effacer
+                    Effacer
                   </button>
                 )}
               </div>
@@ -555,7 +549,7 @@ export default function SamnoteWorkspace() {
                 disabled={searchLoading}
                 className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
               >
-                {searchLoading ? 'Recherche...' : '🔍 Rechercher Photo'}
+                {searchLoading ? 'Recherche...' : 'Rechercher'}
               </button>
             </div>
 
@@ -563,22 +557,22 @@ export default function SamnoteWorkspace() {
             {searchResult && (
               <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-4 md:p-5 relative w-full">
                 <button onClick={clearSearch} className="absolute top-3 right-3 text-slate-400 hover:text-white text-sm font-bold">✕</button>
-                <h2 className="text-lg md:text-xl font-bold text-blue-400 mb-2 pr-6">💡 Photo & Fiche Technique : {searchResult.term}</h2>
+                <h2 className="text-lg md:text-xl font-bold text-blue-400 mb-2 pr-6">Fiche : {searchResult.term}</h2>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 items-center">
                   <div className="space-y-4">
                     <div>
-                      <h3 className="text-xs md:text-sm font-semibold text-slate-300">📖 Description & Fonctionnement :</h3>
+                      <h3 className="text-xs md:text-sm font-semibold text-slate-300">Description & Fonctionnement :</h3>
                       <p className="text-xs md:text-sm text-slate-200 mt-1">{searchResult.definition}</p>
                     </div>
 
                     <a
-                      href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(searchResult.term + ' composant electronique')}`}
+                      href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(searchResult.term + ' ' + currentSubject)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 text-xs font-semibold text-blue-400 hover:underline bg-blue-950/60 border border-blue-700 px-3 py-2 rounded-lg transition-all w-full justify-center sm:w-auto"
                     >
-                      🔍 Voir les photos sur Google Images ↗
+                      Voir les images sur Google ↗
                     </a>
                   </div>
 
@@ -593,7 +587,7 @@ export default function SamnoteWorkspace() {
                     </div>
                   ) : (
                     <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-center text-slate-400 text-xs">
-                      Aucune image Wikipédia directe. Utilisez le lien Google Images ci-dessus.
+                      Aucune image directe disponible.
                     </div>
                   )}
                 </div>
@@ -610,7 +604,7 @@ export default function SamnoteWorkspace() {
                 rows={4}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Saisissez le texte du cours pour générer le résumé...`}
+                placeholder={`Saisissez ou collez le texte de votre cours de ${currentSubject}...`}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
               />
 
@@ -621,7 +615,7 @@ export default function SamnoteWorkspace() {
                   onClick={() => fileInputRef.current?.click()}
                   className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
                 >
-                  📷 Importer Fichier / Photo
+                  Importer Fichier / Photo
                 </button>
 
                 <button
@@ -629,7 +623,7 @@ export default function SamnoteWorkspace() {
                   disabled={loading}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
                 >
-                  {loading ? 'Analyse...' : '⚡ Générer & Enregistrer'}
+                  {loading ? 'Analyse en cours...' : 'Générer & Enregistrer'}
                 </button>
               </div>
             </section>
@@ -638,13 +632,13 @@ export default function SamnoteWorkspace() {
             {currentData.summary && (
               <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 w-full">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <h2 className="text-md md:text-lg font-bold text-emerald-400">📘 Résumé ({currentSubject})</h2>
+                  <h2 className="text-md md:text-lg font-bold text-emerald-400">Résumé ({currentSubject})</h2>
                   <div className="flex gap-2 w-full sm:w-auto">
                     <button onClick={() => toggleAudio(currentData.summary || '')} className="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-300">
-                      {isPlayingAudio ? '⏹️ Arrêter' : '🔊 Écouter'}
+                      {isPlayingAudio ? 'Arrêter' : 'Écouter'}
                     </button>
                     <button onClick={() => handleExportPDF(`Fiche ${currentSubject}`, currentSubject, currentData.summary)} className="flex-1 sm:flex-initial bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg text-xs font-medium">
-                      📄 PDF
+                      PDF
                     </button>
                   </div>
                 </div>
@@ -655,7 +649,7 @@ export default function SamnoteWorkspace() {
             {/* QUESTIONS & RÉPONSES */}
             {currentData.qa && currentData.qa.length > 0 && (
               <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 w-full">
-                <h2 className="text-md md:text-lg font-bold text-purple-400">❓ Questions & Réponses</h2>
+                <h2 className="text-md md:text-lg font-bold text-purple-400">Questions & Réponses</h2>
                 <div className="space-y-2">
                   {currentData.qa.map((item, idx) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
@@ -670,7 +664,7 @@ export default function SamnoteWorkspace() {
             {/* QUIZ INTERACTIF */}
             {currentData.quiz && currentData.quiz.length > 0 && (
               <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4 w-full">
-                <h2 className="text-md md:text-lg font-bold text-blue-400">📝 Quiz d'Évaluation</h2>
+                <h2 className="text-md md:text-lg font-bold text-blue-400">Quiz d'Évaluation</h2>
                 <div className="space-y-4">
                   {currentData.quiz.map((q, qIdx) => {
                     const selectedOption = userAnswers[qIdx];
@@ -716,7 +710,7 @@ export default function SamnoteWorkspace() {
           <div className="space-y-4 md:space-y-6 w-full">
             <section className="bg-slate-900 border border-blue-500/30 rounded-xl p-4 space-y-3 w-full">
               <h2 className="text-md md:text-lg font-bold text-blue-400">
-                ➕ Enregistrer un Document de Référence
+                Enregistrer un Document de Référence
               </h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -768,21 +762,20 @@ export default function SamnoteWorkspace() {
                   onClick={() => refPhotoInputRef.current?.click()}
                   className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium"
                 >
-                  📷 {refImageData ? "Photo ajoutée ✓" : "Ajouter une photo de référence"}
+                  {refImageData ? "Photo ajoutée ✓" : "Ajouter une photo de référence"}
                 </button>
 
                 <button
                   onClick={handleSaveReference}
                   className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
                 >
-                  💾 Enregistrer la référence
+                  Enregistrer la référence
                 </button>
               </div>
             </section>
 
-            {/* LISTE DES RÉFÉRENCES */}
             <section className="space-y-3">
-              <h2 className="text-md md:text-lg font-bold text-slate-200">📑 Documents enregistrés ({references.length})</h2>
+              <h2 className="text-md md:text-lg font-bold text-slate-200">Documents enregistrés ({references.length})</h2>
               {references.length === 0 ? (
                 <p className="text-xs text-slate-400 italic">Aucun document de référence enregistré pour l'instant.</p>
               ) : (
@@ -811,7 +804,7 @@ export default function SamnoteWorkspace() {
         {/* VUE 3 : HISTORIQUE COMPLET */}
         {activeTab === 'history' && (
           <div className="space-y-4 w-full">
-            <h2 className="text-md md:text-lg font-bold text-slate-200">📜 Historique des Générations ({history.length})</h2>
+            <h2 className="text-md md:text-lg font-bold text-slate-200">Historique des Générations ({history.length})</h2>
             {history.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Aucun historique disponible.</p>
             ) : (
