@@ -761,61 +761,52 @@ export default function SamnoteWorkspace() {
                   ref={refPhotoInputRef}
                   onChange={handleRefPhotoUpload}
                   accept="image/*"
-                  capture="environment"
                   className="hidden"
                 />
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => refPhotoInputRef.current?.click()}
-                    className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 border border-slate-700 text-blue-300 px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
-                  >
-                    📸 Photo Directe
-                  </button>
-
-                  {refImageData && (
-                    <span className="text-xs text-emerald-400 font-medium">✓ Photo prête</span>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => refPhotoInputRef.current?.click()}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs px-3 py-2 rounded-lg"
+                >
+                  📸 {refImageData ? 'Changer la Photo' : 'Prendre / Joindre Photo'}
+                </button>
 
                 <button
+                  type="button"
                   onClick={handleSaveReference}
-                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-xs md:text-sm font-semibold transition-colors"
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg"
                 >
-                  💾 Sauvegarder
+                  Enregistrer Référence
                 </button>
               </div>
             </section>
 
             {/* LISTE DES RÉFÉRENCES */}
-            <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 w-full">
-              <h2 className="text-md md:text-lg font-bold text-slate-100">📑 Documents de Référence</h2>
-
+            <section className="space-y-3">
+              <h2 className="text-md font-bold text-slate-300">📚 Documents Enregistrés ({references.length})</h2>
               {references.length === 0 ? (
-                <p className="text-xs text-slate-500 italic py-4 text-center">Aucun document enregistré.</p>
+                <p className="text-xs text-slate-500">Aucun document de référence enregistré.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {references.map((item) => (
-                    <div key={item.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                      <div className="flex justify-between items-start gap-2">
-                        <h3 className="text-xs md:text-sm font-bold text-blue-400">{item.title}</h3>
-                        <button onClick={() => handleDeleteReference(item.id)} className="text-[10px] text-rose-400 hover:underline">Supprimer</button>
+                    <div key={item.id} className="bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="text-sm font-bold text-blue-400">{item.title}</h3>
+                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
+                            {item.subject} • {item.type}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteReference(item.id)}
+                          className="text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 px-2 py-1 rounded border border-rose-900"
+                        >
+                          Effacer
+                        </button>
                       </div>
-
-                      <div className="flex flex-wrap gap-1 text-[10px]">
-                        <span className="bg-blue-600/20 text-blue-300 px-1.5 py-0.5 rounded border border-blue-500/30">{item.subject}</span>
-                        <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">{item.type}</span>
-                        <span className="text-slate-500 py-0.5">{item.date}</span>
-                      </div>
-
+                      <p className="text-xs text-slate-300 line-clamp-3">{item.content}</p>
                       {item.imageDataUrl && (
-                        <img src={item.imageDataUrl} alt={item.title} className="w-full h-32 object-cover rounded border border-slate-800" />
-                      )}
-
-                      {item.content && (
-                        <p className="text-[11px] text-slate-300 bg-slate-900 p-2 rounded border border-slate-800 whitespace-pre-line">
-                          {item.content}
-                        </p>
+                        <img src={item.imageDataUrl} alt={item.title} className="max-h-32 object-contain rounded border border-slate-800" />
                       )}
                     </div>
                   ))}
@@ -828,91 +819,27 @@ export default function SamnoteWorkspace() {
         {/* VUE 3 : HISTORIQUE COMPLET */}
         {activeTab === 'history' && (
           <div className="space-y-4 w-full">
-            <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 w-full">
-              <div className="flex justify-between items-center">
-                <h2 className="text-md md:text-lg font-bold text-emerald-400">📜 Historique</h2>
-                {history.length > 0 && (
-                  <button
-                    onClick={() => {
-                      if (confirm("Voulez-vous supprimer tout l'historique ?")) {
-                        setHistory([]);
-                        localStorage.removeItem('samnote_history');
-                        setSelectedHistoryItem(null);
-                      }
-                    }}
-                    className="text-xs text-rose-400 hover:underline"
-                  >
-                    Vider l'historique
-                  </button>
-                )}
-              </div>
-
-              {history.length === 0 ? (
-                <p className="text-xs text-slate-500 italic py-4 text-center">Aucun élément enregistré.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="space-y-2 md:col-span-1">
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => setSelectedHistoryItem(item)}
-                        className={`p-2.5 rounded-lg border cursor-pointer transition-all ${
-                          selectedHistoryItem?.id === item.id
-                            ? 'bg-blue-600/20 border-blue-500 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-800'
-                        }`}
+            <h2 className="text-md md:text-lg font-bold text-slate-200">📜 Historique des Générations</h2>
+            {history.length === 0 ? (
+              <p className="text-xs text-slate-500">Aucun historique disponible.</p>
+            ) : (
+              <div className="space-y-3">
+                {history.map((h) => (
+                  <div key={h.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-bold text-emerald-400">{h.title}</h3>
+                      <button
+                        onClick={() => handleDeleteHistory(h.id)}
+                        className="text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 px-2 py-1 rounded border border-rose-900"
                       >
-                        <div className="flex justify-between items-start">
-                          <h3 className="text-xs font-bold text-blue-300">{item.title}</h3>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteHistory(item.id);
-                            }}
-                            className="text-[10px] text-rose-400 hover:underline"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                        <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1">
-                          <span>{item.subject}</span>
-                          <span>{item.date}</span>
-                        </div>
-                      </div>
-                    ))}
+                        Effacer
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-300 whitespace-pre-line">{h.summary}</p>
                   </div>
-
-                  <div className="md:col-span-2 bg-slate-950 p-3 rounded-lg border border-slate-800">
-                    {selectedHistoryItem ? (
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-                          <h3 className="text-xs md:text-sm font-bold text-blue-400">{selectedHistoryItem.title}</h3>
-                          <button
-                            onClick={() => handleExportPDF(selectedHistoryItem.title, selectedHistoryItem.subject, selectedHistoryItem.summary)}
-                            className="bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-2.5 py-1 rounded text-[10px]"
-                          >
-                            📄 PDF
-                          </button>
-                        </div>
-
-                        {selectedHistoryItem.summary && (
-                          <div>
-                            <h4 className="text-xs font-semibold text-emerald-400 mb-1">📘 Résumé :</h4>
-                            <p className="text-xs text-slate-300 whitespace-pre-line bg-slate-900 p-2.5 rounded border border-slate-800">
-                              {selectedHistoryItem.summary}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-xs text-slate-500 italic py-8">
-                        Sélectionnez un élément dans la liste pour voir ses détails.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </section>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
