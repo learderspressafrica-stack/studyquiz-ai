@@ -53,7 +53,7 @@ export default function SamnoteWorkspace() {
     { name: 'Dessin Technique', icon: '📐' },
     { name: 'Gestion', icon: '📊' },
     { name: 'Droit', icon: '⚖️' },
-    { name: 'Sport', icon: '⚽' }
+    { name: 'Support & Contact', icon: '💬' }
   ];
 
   const [currentSubject, setCurrentSubject] = useState<string>('Électricité');
@@ -212,7 +212,7 @@ export default function SamnoteWorkspace() {
             <h2>📘 Résumé Complet du Cours</h2>
             <p>${summaryText.replace(/\n/g, '<br/>')}</p>
           </div>
-          <div class="footer">Document d'étude généré et conservé par Samnote (Contact : skillforgeofficiel@gmail.com)</div>
+          <div class="footer">Document d'étude généré et conservé par Samnote</div>
         </body>
       </html>
     `);
@@ -385,7 +385,7 @@ export default function SamnoteWorkspace() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans max-w-full overflow-x-hidden">
       
-      {/* 🚀 ÉCRAN DE DÉMARRAGE PLEIN ÉCRAN */}
+      {/* ÉCRAN DE DÉMARRAGE PLEIN ÉCRAN */}
       {showSplashScreen && (
         <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between items-center p-4 md:p-6 text-center select-none">
           
@@ -499,7 +499,7 @@ export default function SamnoteWorkspace() {
           </button>
         </div>
 
-        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières & Filières</p>
+        <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Matières & Support</p>
         <div className="grid grid-cols-1 gap-1 max-h-[50vh] md:max-h-none overflow-y-auto pr-1">
           {subjectsList.map((sub) => (
             <button
@@ -521,8 +521,54 @@ export default function SamnoteWorkspace() {
       {/* ZONE DE CONTENU PRINCIPAL */}
       <main className="flex-1 p-3 md:p-6 space-y-4 md:space-y-6 overflow-y-auto w-full max-w-full">
         
-        {/* VUE 1 : ESPACE DE TRAVAIL */}
-        {activeTab === 'workspace' && (
+        {/* VUE 1 : ESPACE DE TRAVAIL (OU PAGE SUPPORT & CONTACT SI SÉLECTIONNÉ) */}
+        {activeTab === 'workspace' && currentSubject === 'Support & Contact' ? (
+          <div className="space-y-6 max-w-2xl mx-auto py-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-2xl">
+                  💬
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-white">Support & Amélioration de la Page</h2>
+                  <p className="text-xs text-slate-400">Contactez-moi pour suggérer des améliorations ou signaler un problème.</p>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-800 pt-4 space-y-4 text-sm text-slate-300">
+                <p>
+                  Cette application a été conçue pour vous accompagner dans vos études en électronique. Vos retours, idées d'améliorations ou signalements de bugs sont précieux pour faire évoluer la plateforme.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <a
+                    href="https://wa.me/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 p-4 rounded-xl flex items-center gap-3 transition-all text-emerald-300"
+                  >
+                    <span className="text-2xl">📱</span>
+                    <div>
+                      <p className="font-bold text-xs uppercase tracking-wide">WhatsApp</p>
+                      <p className="text-xs text-slate-300">Envoyer un message direct</p>
+                    </div>
+                  </a>
+
+                  <a
+                    href="mailto:skillforgeofficiel@gmail.com"
+                    className="bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 p-4 rounded-xl flex items-center gap-3 transition-all text-blue-300"
+                  >
+                    <span className="text-2xl">✉️</span>
+                    <div>
+                      <p className="font-bold text-xs uppercase tracking-wide">E-mail</p>
+                      <p className="text-xs text-slate-300">skillforgeofficiel@gmail.com</p>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'workspace' && (
           <>
             {/* RECHERCHE COMPOSANTS */}
             <div className="flex flex-col sm:flex-row gap-2 w-full">
@@ -727,7 +773,7 @@ export default function SamnoteWorkspace() {
                   onChange={(e) => setRefSubject(e.target.value)}
                   className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs md:text-sm text-slate-300"
                 >
-                  {subjectsList.map(s => <option key={s.name} value={s.name}>{s.icon} {s.name}</option>)}
+                  {subjectsList.filter(s => s.name !== 'Support & Contact').map(s => <option key={s.name} value={s.name}>{s.icon} {s.name}</option>)}
                 </select>
 
                 <select
