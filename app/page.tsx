@@ -213,7 +213,7 @@ export default function SamnoteWorkspace() {
             <h2>📘 Résumé Complet du Cours</h2>
             <p>${summaryText.replace(/\n/g, '<br/>')}</p>
           </div>
-          <div class="footer">Document d'étude généré et conservé par Samnote</div>
+          <div class="footer">Document d'étude généré et conservé par Samnote (Contact : skillforgeofficiel@gmail.com)</div>
         </body>
       </html>
     `);
@@ -763,50 +763,42 @@ export default function SamnoteWorkspace() {
                   accept="image/*"
                   className="hidden"
                 />
+                
                 <button
-                  type="button"
                   onClick={() => refPhotoInputRef.current?.click()}
-                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs px-3 py-2 rounded-lg"
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium"
                 >
-                  📸 {refImageData ? 'Changer la Photo' : 'Prendre / Joindre Photo'}
+                  📷 {refImageData ? "Photo ajoutée ✓" : "Ajouter une photo de référence"}
                 </button>
 
                 <button
-                  type="button"
                   onClick={handleSaveReference}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
                 >
-                  Enregistrer Référence
+                  💾 Enregistrer la référence
                 </button>
               </div>
             </section>
 
             {/* LISTE DES RÉFÉRENCES */}
             <section className="space-y-3">
-              <h2 className="text-md font-bold text-slate-300">📚 Documents Enregistrés ({references.length})</h2>
+              <h2 className="text-md md:text-lg font-bold text-slate-200">📑 Documents enregistrés ({references.length})</h2>
               {references.length === 0 ? (
-                <p className="text-xs text-slate-500">Aucun document de référence enregistré.</p>
+                <p className="text-xs text-slate-400 italic">Aucun document de référence enregistré pour l'instant.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {references.map((item) => (
-                    <div key={item.id} className="bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-sm font-bold text-blue-400">{item.title}</h3>
-                          <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
-                            {item.subject} • {item.type}
-                          </span>
+                  {references.map((r) => (
+                    <div key={r.id} className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex flex-col justify-between space-y-2">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <h3 className="text-sm font-bold text-blue-400">{r.title}</h3>
+                          <button onClick={() => handleDeleteReference(r.id)} className="text-xs text-rose-400 hover:underline">Supprimer</button>
                         </div>
-                        <button
-                          onClick={() => handleDeleteReference(item.id)}
-                          className="text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 px-2 py-1 rounded border border-rose-900"
-                        >
-                          Effacer
-                        </button>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{r.subject} • {r.type} • {r.date}</p>
+                        <p className="text-xs text-slate-300 mt-2 line-clamp-3">{r.content}</p>
                       </div>
-                      <p className="text-xs text-slate-300 line-clamp-3">{item.content}</p>
-                      {item.imageDataUrl && (
-                        <img src={item.imageDataUrl} alt={item.title} className="max-h-32 object-contain rounded border border-slate-800" />
+                      {r.imageDataUrl && (
+                        <img src={r.imageDataUrl} alt="Ref" className="h-20 object-cover rounded-lg border border-slate-800 mt-2" />
                       )}
                     </div>
                   ))}
@@ -819,23 +811,25 @@ export default function SamnoteWorkspace() {
         {/* VUE 3 : HISTORIQUE COMPLET */}
         {activeTab === 'history' && (
           <div className="space-y-4 w-full">
-            <h2 className="text-md md:text-lg font-bold text-slate-200">📜 Historique des Générations</h2>
+            <h2 className="text-md md:text-lg font-bold text-slate-200">📜 Historique des Générations ({history.length})</h2>
             {history.length === 0 ? (
-              <p className="text-xs text-slate-500">Aucun historique disponible.</p>
+              <p className="text-xs text-slate-400 italic">Aucun historique disponible.</p>
             ) : (
               <div className="space-y-3">
                 {history.map((h) => (
                   <div key={h.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div className="flex justify-between items-center">
-                      <h3 className="text-sm font-bold text-emerald-400">{h.title}</h3>
-                      <button
-                        onClick={() => handleDeleteHistory(h.id)}
-                        className="text-xs text-rose-400 hover:text-rose-300 bg-rose-950/40 px-2 py-1 rounded border border-rose-900"
-                      >
-                        Effacer
-                      </button>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-sm font-bold text-emerald-400">{h.title}</h3>
+                        <p className="text-[11px] text-slate-400">Matière : {h.subject} | Date : {h.date}</p>
+                      </div>
+                      <button onClick={() => handleDeleteHistory(h.id)} className="text-xs text-rose-400 hover:underline">Supprimer</button>
                     </div>
-                    <p className="text-xs text-slate-300 whitespace-pre-line">{h.summary}</p>
+                    {h.summary && (
+                      <p className="text-xs text-slate-300 line-clamp-2 bg-slate-950 p-2 rounded border border-slate-800/60 mt-1">
+                        {h.summary}
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
