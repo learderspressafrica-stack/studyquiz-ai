@@ -59,6 +59,9 @@ export default function SamnoteWorkspace() {
   const [activeTab, setActiveTab] = useState<'workspace' | 'history' | 'references'>('workspace');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   
+  // Écran de démarrage plein écran
+  const [showSplashScreen, setShowSplashScreen] = useState<boolean>(true);
+
   const [inputText, setInputText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
@@ -98,6 +101,10 @@ export default function SamnoteWorkspace() {
     const savedRefs = localStorage.getItem('samnote_references');
     if (savedRefs) setReferences(JSON.parse(savedRefs));
   }, []);
+
+  const closeSplashScreen = () => {
+    setShowSplashScreen(false);
+  };
 
   const handleSubjectChange = (subject: string) => {
     setCurrentSubject(subject);
@@ -379,27 +386,95 @@ export default function SamnoteWorkspace() {
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-950 text-slate-100 font-sans max-w-full overflow-x-hidden">
       
-      {/* BARRE HAUTE MOBILE (MENU & TITRE) */}
+      {/* 🚀 ÉCRAN DE DÉMARRAGE PLEIN ÉCRAN AVEC VIDÉO */}
+      {showSplashScreen && (
+        <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between items-center p-4 md:p-6 text-center select-none">
+          
+          {/* Header */}
+          <div className="pt-4 md:pt-6 flex flex-col items-center">
+            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-400 flex items-center justify-center text-3xl font-bold text-white shadow-xl shadow-blue-500/20 mb-2 animate-pulse">
+              ⚡
+            </div>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-wide">
+              Samnote
+            </h1>
+            <p className="text-xs text-blue-400 font-medium mt-0.5">
+              Assistant Virtuel en Électronique & Automatisme
+            </p>
+          </div>
+
+          {/* LECTEUR VIDÉO INTERACTIF */}
+          <div className="w-full max-w-md my-auto space-y-3">
+            <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl aspect-video flex items-center justify-center">
+              <video 
+                autoPlay 
+                loop 
+                muted 
+                playsInline 
+                className="w-full h-full object-cover"
+              >
+                <source src="/demo.mp4" type="video/mp4" />
+                Votre navigateur ne supporte pas la lecture vidéo.
+              </video>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed px-2">
+              Analyse de cours par photo, recherche de composants et quiz d'évaluation.
+            </p>
+          </div>
+
+          {/* BOUTON D'ACCÈS */}
+          <div className="w-full max-w-md pb-4 md:pb-6">
+            <button
+              onClick={closeSplashScreen}
+              className="w-full bg-gradient-to-r from-blue-600 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white font-bold py-3.5 px-6 rounded-xl text-base shadow-lg transition-all transform active:scale-95"
+            >
+              Accéder à l'application 🚀
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      {/* BARRE HAUTE MOBILE */}
       <div className="md:hidden bg-slate-900 border-b border-slate-800 p-3 flex justify-between items-center sticky top-0 z-30">
-        <h1 className="text-lg font-bold text-blue-400 flex items-center gap-2">
-          ⚡ Samnote
-        </h1>
-        <button
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="bg-slate-800 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
-        >
-          {isMobileMenuOpen ? '✕ Fermer' : '☰ Menu / Matières'}
-        </button>
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-emerald-400 flex items-center justify-center text-xs font-bold text-white">
+            ⚡
+          </div>
+          <h1 className="text-base font-bold text-white">Samnote</h1>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSplashScreen(true)}
+            className="bg-slate-800 text-blue-400 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
+          >
+            🎬 Présentation
+          </button>
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="bg-slate-800 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
+          >
+            {isMobileMenuOpen ? '✕ Fermer' : '☰ Menu'}
+          </button>
+        </div>
       </div>
 
-      {/* BARRE LATÉRALE (DESKTOP ET MENU REPLIABLE MOBILE) */}
+      {/* BARRE LATÉRALE */}
       <aside className={`${
         isMobileMenuOpen ? 'block' : 'hidden'
       } md:block w-full md:w-64 bg-slate-900 border-r border-slate-800 p-4 flex-shrink-0 z-20`}>
         
-        <h1 className="hidden md:flex text-xl font-bold text-blue-400 mb-6 items-center gap-2">
-          ⚡ Samnote
-        </h1>
+        <div className="hidden md:flex items-center gap-3 mb-6 pb-4 border-b border-slate-800">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-400 flex items-center justify-center font-bold text-xl text-white shadow-lg">
+            ⚡
+          </div>
+          <div>
+            <h1 className="text-lg font-extrabold text-white tracking-wide">Samnote</h1>
+            <p className="text-[10px] text-blue-400 font-medium">BP Électronique</p>
+          </div>
+        </div>
         
         <p className="text-xs text-slate-400 uppercase font-semibold mb-2">Navigation</p>
         <div className="space-y-1 mb-6">
@@ -454,7 +529,7 @@ export default function SamnoteWorkspace() {
         {/* VUE 1 : ESPACE DE TRAVAIL */}
         {activeTab === 'workspace' && (
           <>
-            {/* RECHERCHE COMPOSANTS AVEC EFFACEMENT RAPIDE SUR MOBILE */}
+            {/* RECHERCHE COMPOSANTS */}
             <div className="flex flex-col sm:flex-row gap-2 w-full">
               <div className="relative flex-1 w-full">
                 <input
@@ -773,7 +848,7 @@ export default function SamnoteWorkspace() {
               </div>
 
               {history.length === 0 ? (
-                <p className="text-xs text-slate-500 italic py-4 text-center">Aucun élément enregistre.</p>
+                <p className="text-xs text-slate-500 italic py-4 text-center">Aucun élément enregistré.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="space-y-2 md:col-span-1">
