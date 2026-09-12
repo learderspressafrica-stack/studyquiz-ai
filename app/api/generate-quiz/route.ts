@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   try {
     if (!apiKey) {
       return NextResponse.json(
-        { error: "La clé GEMINI_API_KEY n'est pas configurée sur Vercel." },
+        { error: "La clé GEMINI_API_KEY n'est pas configurée dans les variables d'environnement Vercel." },
         { status: 500 }
       );
     }
@@ -17,21 +17,18 @@ export async function POST(req: Request) {
 
     if (!prompt) {
       return NextResponse.json(
-        { error: "Aucun contenu fourni." },
+        { error: "Aucun contenu n'a été fourni pour l'analyse." },
         { status: 400 }
       );
     }
 
-    // Force la version API v1 et utilise l'identifiant valide du modèle Flash
-    const model = genAI.getGenerativeModel(
-      {
-        model: 'gemini-1.5-flash',
-        generationConfig: {
-          responseMimeType: 'application/json',
-        },
+    // Intégration du modèle Gemini 3.6 Flash
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-3.6-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
       },
-      { apiVersion: 'v1' }
-    );
+    });
 
     const systemInstruction = `
 Tu es un assistant pédagogique pour l'application Samnote.
@@ -61,23 +58,26 @@ Analyse le document fourni et réponds exclusivement sous la forme d'un objet JS
 }
 `;
 
-    const result = await model.generateContent(`${systemInstruction}\n\nCours à analyser :\n${prompt}`);
+    const result = await model.generateContent(`${systemInstruction}\n\nContenu du cours à analyser :\n${prompt}`);
     const responseText = result.response.text();
 
     if (!responseText) {
       return NextResponse.json(
-        { error: "L'IA n'a pas retourné de réponse." },
+        { error: "L'IA n'a retourné aucune réponse." },
         { status: 500 }
       );
     }
 
-    const parsedData = JSON.parse(responseText);
+    // Extraction et nettoyage du JSON
+    const cleanJsonText = responseText.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+    const parsedData = JSON.parse(cleanJsonText);
+
     return NextResponse.json(parsedData);
 
   } catch (error: any) {
-    console.error("Erreur Gemini:", error);
+    console.error("Erreur Gemini 3.6 API:", error);
     return NextResponse.json(
-      { error: error.message || "Erreur lors du traitement par Gemini" },
+      { error: error.message || "Une erreur est survenue lors du traitement avec Gemini 3.6." },
       { status: 500 }
     );
   }
