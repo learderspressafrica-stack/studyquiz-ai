@@ -57,10 +57,8 @@ export default function SamnoteWorkspace() {
   ];
 
   const [currentSubject, setCurrentSubject] = useState<string>('Électricité');
-  const [activeTab, setActiveTab] = useState<'workspace' | 'history' | 'references'>('workspace');
+  const [activeTab, setActiveTab] = useState<'workspace' | 'references' | 'calculator' | 'history'>('workspace');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  
-  // Écran de démarrage plein écran
   const [showSplashScreen, setShowSplashScreen] = useState<boolean>(true);
 
   const [inputText, setInputText] = useState<string>('');
@@ -68,7 +66,6 @@ export default function SamnoteWorkspace() {
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   
-  // Devs & Références
   const [refTitle, setRefTitle] = useState<string>('');
   const [refType, setRefType] = useState<string>('Cours de Référence');
   const [refContentText, setRefContentText] = useState<string>('');
@@ -78,10 +75,22 @@ export default function SamnoteWorkspace() {
   const [references, setReferences] = useState<SavedReference[]>([]);
   const [history, setHistory] = useState<SavedReference[]>([]);
 
-  // Audio & Quiz
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
   const [userAnswers, setUserAnswers] = useState<Record<number, number>>({});
   
+  // États du Calculateur Électronique
+  const [ohmV, setOhmV] = useState<string>('');
+  const [ohmR, setOhmR] = useState<string>('');
+  const [ohmI, setOhmI] = useState<string>('');
+  const [ohmP, setOhmP] = useState<string>('');
+
+  const [resSeries, setResSeries] = useState<string>('100, 220, 470');
+  const [resParallel, setResParallel] = useState<string>('100, 100');
+
+  const [divUe, setDivUe] = useState<string>('12');
+  const [divR1, setDivR1] = useState<string>('1000');
+  const [divR2, setDivR2] = useState<string>('1000');
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const refPhotoInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -380,6 +389,57 @@ export default function SamnoteWorkspace() {
     setUserAnswers(prev => ({ ...prev, [questionIdx]: optionIdx }));
   };
 
+  // Calculs Loi d'Ohm
+  const calculateOhm = (field: 'V' | 'R' | 'I' | 'P') => {
+    const v = parseFloat(ohmV);
+    const r = parseFloat(ohmR);
+    const i = parseFloat(ohmI);
+    const p = parseFloat(ohmP);
+
+    if (field === 'V') {
+      if (!isNaN(r) && !isNaN(i)) setOhmV((r * i).toFixed(2));
+      else if (!isNaN(p) && !isNaN(i) && i !== 0) setOhmV((p / i).toFixed(2));
+      else if (!isNaN(p) && !isNaN(r)) setOhmV((Math.sqrt(p * r)).toFixed(2));
+    } else if (field === 'I') {
+      if (!isNaN(v) && !isNaN(r) && r !== 0) setOhmI((v / r).toFixed(4));
+      else if (!isNaN(p) && !isNaN(v) && v !== 0) setOhmI((p / v).toFixed(4));
+      else if (!isNaN(p) && !isNaN(r) && r !== 0) setOhmI((Math.sqrt(p / r)).toFixed(4));
+    } else if (field === 'R') {
+      if (!isNaN(v) && !isNaN(i) && i !== 0) setOhmR((v / i).toFixed(2));
+      else if (!isNaN(v) && !isNaN(p) && p !== 0) setOhmR(((v * v) / p).toFixed(2));
+      else if (!isNaN(p) && !isNaN(i) && i !== 0) setOhmR((p / (i * i)).toFixed(2));
+    } else if (field === 'P') {
+      if (!isNaN(v) && !isNaN(i)) setOhmP((v * i).toFixed(2));
+      else if (!isNaN(v) && !isNaN(r) && r !== 0) setOhmP(((v * v) / r).toFixed(2));
+      else if (!isNaN(r) && !isNaN(i)) setOhmP((r * i * i).toFixed(2));
+    }
+  };
+
+  // Calcul Série / Parallèle
+  const parseResistors = (str: string): number[] => {
+    return str
+      .split(',')
+      .map(s => parseFloat(s.trim()))
+      .filter(n => !isNaN(n) && n > 0);
+  };
+
+  const seriesTotal = parseResistors(resSeries).reduce((acc, val) => acc + val, 0);
+  const parallelTotal = (() => {
+    const vals = parseResistors(resParallel);
+    if (vals.length === 0) return 0;
+    const invSum = vals.reduce((acc, val) => acc + (1 / val), 0);
+    return invSum !== 0 ? 1 / invSum : 0;
+  })();
+
+  // Diviseur de tension
+  const calculateVoltageDivider = () => {
+    const ue = parseFloat(divUe) || 0;
+    const r1 = parseFloat(divR1) || 0;
+    const r2 = parseFloat(divR2) || 0;
+    if (r1 + r2 === 0) return 0;
+    return ue * (r2 / (r1 + r2));
+  };
+
   const currentData = subjectData[currentSubject] || {};
 
   return (
@@ -388,7 +448,6 @@ export default function SamnoteWorkspace() {
       {/* ÉCRAN DE DÉMARRAGE PLEIN ÉCRAN */}
       {showSplashScreen && (
         <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col justify-between items-center p-4 md:p-6 text-center select-none">
-          
           <div className="pt-4 md:pt-6 flex flex-col items-center">
             <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-emerald-400 flex items-center justify-center text-3xl font-bold text-white shadow-xl shadow-blue-500/20 mb-2">
               ⚡
@@ -403,11 +462,11 @@ export default function SamnoteWorkspace() {
 
           <div className="w-full max-w-md my-auto space-y-3">
             <div className="relative rounded-2xl overflow-hidden border border-slate-800 bg-slate-900 shadow-2xl aspect-video flex items-center justify-center">
-              <video 
-                autoPlay 
-                loop 
-                muted 
-                playsInline 
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
                 className="w-full h-full object-cover"
               >
                 <source src="/demo.mp4" type="video/mp4" />
@@ -427,7 +486,6 @@ export default function SamnoteWorkspace() {
               Accéder à l'application
             </button>
           </div>
-
         </div>
       )}
 
@@ -482,6 +540,14 @@ export default function SamnoteWorkspace() {
             Espace de Travail
           </button>
           <button
+            onClick={() => { setActiveTab('calculator'); setIsMobileMenuOpen(false); }}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'calculator' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+            }`}
+          >
+            🧮 Calculateur Électronique
+          </button>
+          <button
             onClick={() => { setActiveTab('references'); setIsMobileMenuOpen(false); }}
             className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'references' ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
@@ -521,8 +587,155 @@ export default function SamnoteWorkspace() {
       {/* ZONE DE CONTENU PRINCIPAL */}
       <main className="flex-1 p-3 md:p-6 space-y-4 md:space-y-6 overflow-y-auto w-full max-w-full">
         
-        {/* VUE 1 : ESPACE DE TRAVAIL (OU PAGE SUPPORT & CONTACT SI SÉLECTIONNÉ) */}
-        {activeTab === 'workspace' && currentSubject === 'Support & Contact' ? (
+        {/* VUE : CALCULATEUR ÉLECTRONIQUE */}
+        {activeTab === 'calculator' ? (
+          <div className="space-y-6 max-w-3xl mx-auto py-2">
+            <div>
+              <h2 className="text-xl font-bold text-white">Calculateur Électronique</h2>
+              <p className="text-xs text-slate-400">Outils de calcul rapide pour la loi d'Ohm, les résistances et le diviseur de tension.</p>
+            </div>
+
+            {/* 1. LOI D'OHM */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h3 className="text-sm font-bold text-blue-400">Loi d'Ohm ($U = R \times I, P = U \times I$)</h3>
+                <span className="text-[10px] text-slate-500">Remplissez 2 champs pour calculer les autres</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Tension U (V)</label>
+                  <input
+                    type="number"
+                    value={ohmV}
+                    onChange={(e) => { setOhmV(e.target.value); }}
+                    onBlur={() => calculateOhm('V')}
+                    placeholder="ex: 12"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Résistance R (Ω)</label>
+                  <input
+                    type="number"
+                    value={ohmR}
+                    onChange={(e) => { setOhmR(e.target.value); }}
+                    onBlur={() => calculateOhm('R')}
+                    placeholder="ex: 220"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Intensité I (A)</label>
+                  <input
+                    type="number"
+                    value={ohmI}
+                    onChange={(e) => { setOhmI(e.target.value); }}
+                    onBlur={() => calculateOhm('I')}
+                    placeholder="ex: 0.054"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Puissance P (W)</label>
+                  <input
+                    type="number"
+                    value={ohmP}
+                    onChange={(e) => { setOhmP(e.target.value); }}
+                    onBlur={() => calculateOhm('P')}
+                    placeholder="ex: 0.65"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    setOhmV('');
+                    setOhmR('');
+                    setOhmI('');
+                    setOhmP('');
+                  }}
+                  className="text-xs text-slate-400 hover:text-white px-3 py-1 bg-slate-800 rounded-lg"
+                >
+                  Réinitialiser
+                </button>
+              </div>
+            </div>
+
+            {/* 2. RÉSISTANCES EN SÉRIE ET PARALLÈLE */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-bold text-emerald-400">Résistances en Série</h3>
+                <p className="text-[11px] text-slate-400">Séparez les valeurs par des virgules (ex: 100, 220, 470)</p>
+                <input
+                  type="text"
+                  value={resSeries}
+                  onChange={(e) => setResSeries(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white"
+                />
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
+                  <span className="text-xs text-slate-400">R équivalente :</span>
+                  <span className="text-sm font-bold text-emerald-400">{seriesTotal.toFixed(2)} Ω</span>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-bold text-purple-400">Résistances en Parallèle</h3>
+                <p className="text-[11px] text-slate-400">Séparez les valeurs par des virgules (ex: 100, 100)</p>
+                <input
+                  type="text"
+                  value={resParallel}
+                  onChange={(e) => setResParallel(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white"
+                />
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
+                  <span className="text-xs text-slate-400">R équivalente :</span>
+                  <span className="text-sm font-bold text-purple-400">{parallelTotal.toFixed(2)} Ω</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. DIVISEUR DE TENSION */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h3 className="text-sm font-bold text-amber-400">
+              Pont Diviseur de Tension (U<sub>s</sub> = U<sub>e</sub> &times; R<sub>2</sub> / (R<sub>1</sub> + R<sub>2</sub>))
+            </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Tension d'entrée $U_e$ (V)</label>
+                  <input
+                    type="number"
+                    value={divUe}
+                    onChange={(e) => setDivUe(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Résistance $R_1$ (Ω)</label>
+                  <input
+                    type="number"
+                    value={divR1}
+                    onChange={(e) => setDivR1(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Résistance $R_2$ (Ω)</label>
+                  <input
+                    type="number"
+                    value={divR2}
+                    onChange={(e) => setDivR2(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+              </div>
+              <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center mt-2">
+                <span className="text-xs text-slate-300">Tension de sortie calculée ($U_s$) :</span>
+                <span className="text-sm font-bold text-amber-400">{calculateVoltageDivider().toFixed(3)} V</span>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'workspace' && currentSubject === 'Support & Contact' ? (
           <div className="space-y-6 max-w-2xl mx-auto py-4">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-xl">
               <div className="flex items-center gap-3">
@@ -568,174 +781,309 @@ export default function SamnoteWorkspace() {
               </div>
             </div>
           </div>
-        ) : activeTab === 'workspace' && (
-          <>
-            {/* RECHERCHE COMPOSANTS */}
-            <div className="flex flex-col sm:flex-row gap-2 w-full">
-              <div className="relative flex-1 w-full">
-                <input
-                  type="text"
-                  placeholder={`Rechercher un composant ou concept (ex: Diode, Transistor)...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-3 pr-10 py-2.5 text-sm focus:outline-none focus:border-blue-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={clearSearch}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white bg-slate-800 px-2 py-0.5 rounded-full text-xs"
+        ) : activeTab === 'references' ? (
+          <div className="space-y-6 max-w-4xl mx-auto py-2">
+            <div>
+              <h2 className="text-xl font-bold text-white">Cours & Devoirs Référence</h2>
+              <p className="text-xs text-slate-400">Enregistrez vos cours, TP ou devoirs pour guider l'assistant IA.</p>
+            </div>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+              <h3 className="text-sm font-bold text-blue-400">Ajouter une Référence</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Titre</label>
+                  <input
+                    type="text"
+                    value={refTitle}
+                    onChange={(e) => setRefTitle(e.target.value)}
+                    placeholder="Ex: TP Transistor BJT"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium">Matière</label>
+                  <select
+                    value={refSubject}
+                    onChange={(e) => setRefSubject(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
                   >
-                    Effacer
-                  </button>
+                    {subjectsList.filter(s => s.name !== 'Support & Contact').map(s => (
+                      <option key={s.name} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium">Type</label>
+                <select
+                  value={refType}
+                  onChange={(e) => setRefType(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                >
+                  <option value="Cours de Référence">Cours de Référence</option>
+                  <option value="Énoncé de Devoir">Énoncé de Devoir</option>
+                  <option value="Compte rendu TP">Compte rendu TP</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium">Contenu du texte (optionnel si photo)</label>
+                <textarea
+                  rows={3}
+                  value={refContentText}
+                  onChange={(e) => setRefContentText(e.target.value)}
+                  placeholder="Collez le texte du cours ou notes..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={refPhotoInputRef}
+                  onChange={handleRefPhotoUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => refPhotoInputRef.current?.click()}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold border border-slate-700"
+                >
+                  📷 Ajouter une photo
+                </button>
+                {refImageData && (
+                  <span className="text-xs text-emerald-400">Photo chargée ✓</span>
                 )}
               </div>
+
               <button
-                onClick={handleSearch}
-                disabled={searchLoading}
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                onClick={handleSaveReference}
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all"
               >
-                {searchLoading ? 'Recherche...' : 'Rechercher'}
+                Enregistrer la Référence
               </button>
             </div>
 
-            {/* RÉSULTAT DE RECHERCHE */}
-            {searchResult && (
-              <section className="bg-slate-900 border border-blue-500/40 rounded-xl p-4 md:p-5 relative w-full">
-                <button onClick={clearSearch} className="absolute top-3 right-3 text-slate-400 hover:text-white text-sm font-bold">✕</button>
-                <h2 className="text-lg md:text-xl font-bold text-blue-400 mb-2 pr-6">Fiche : {searchResult.term}</h2>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 items-center">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-xs md:text-sm font-semibold text-slate-300">Description & Fonctionnement :</h3>
-                      <p className="text-xs md:text-sm text-slate-200 mt-1">{searchResult.definition}</p>
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-white">Références Enregistrées ({references.length})</h3>
+              {references.length === 0 ? (
+                <p className="text-xs text-slate-500 italic">Aucune référence enregistrée pour le moment.</p>
+              ) : (
+                references.map((ref) => (
+                  <div key={ref.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex justify-between items-start gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-blue-400">{ref.subject}</span>
+                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{ref.type}</span>
+                        <span className="text-[10px] text-slate-500">{ref.date}</span>
+                      </div>
+                      <h4 className="text-sm font-bold text-white">{ref.title}</h4>
+                      <p className="text-xs text-slate-300 whitespace-pre-wrap">{ref.content}</p>
+                      {ref.imageDataUrl && (
+                        <img src={ref.imageDataUrl} alt="Référence" className="w-32 h-32 object-cover rounded-lg mt-2 border border-slate-700" />
+                      )}
                     </div>
-
-                    <a
-                      href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(searchResult.term + ' ' + currentSubject)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 text-xs font-semibold text-blue-400 hover:underline bg-blue-950/60 border border-blue-700 px-3 py-2 rounded-lg transition-all w-full justify-center sm:w-auto"
+                    <button
+                      onClick={() => handleDeleteReference(ref.id)}
+                      className="text-xs text-red-400 hover:text-red-300 px-2 py-1 bg-red-950/40 border border-red-900/40 rounded-lg"
                     >
-                      Voir les images sur Google ↗
-                    </a>
+                      Supprimer
+                    </button>
                   </div>
-
-                  {searchResult.imageUrl ? (
-                    <div className="bg-slate-950 p-2 md:p-3 rounded-lg border border-slate-800 flex flex-col items-center">
-                      <img 
-                        src={searchResult.imageUrl} 
-                        alt={searchResult.term} 
-                        className="max-h-48 md:max-h-64 object-contain rounded-lg w-full"
-                      />
-                      <span className="text-[10px] text-slate-400 mt-2">Source : Wikipédia / Wikimedia Commons</span>
+                ))
+              )}
+            </div>
+          </div>
+        ) : activeTab === 'history' ? (
+          <div className="space-y-6 max-w-4xl mx-auto py-2">
+            <div>
+              <h2 className="text-xl font-bold text-white">Historique des Générations</h2>
+              <p className="text-xs text-slate-400">Retrouvez vos résumés et quiz générés précédemment.</p>
+            </div>
+            {history.length === 0 ? (
+              <p className="text-xs text-slate-500 italic">Aucun historique pour le moment.</p>
+            ) : (
+              history.map((item) => (
+                <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-blue-400">{item.subject}</span>
+                      <span className="text-[10px] text-slate-500">{item.date}</span>
                     </div>
-                  ) : (
-                    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-center text-slate-400 text-xs">
-                      Aucune image directe disponible.
+                    <button
+                      onClick={() => handleDeleteHistory(item.id)}
+                      className="text-xs text-red-400 hover:text-red-300"
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                  <h4 className="text-sm font-bold text-white">{item.title}</h4>
+                  {item.summary && (
+                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs text-slate-300 whitespace-pre-wrap">
+                      {item.summary}
                     </div>
                   )}
+                  {item.summary && (
+                    <button
+                      onClick={() => handleExportPDF(item.title, item.subject, item.summary)}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold"
+                    >
+                      📄 Exporter en PDF
+                    </button>
+                  )}
                 </div>
-              </section>
+              ))
+            )}
+          </div>
+        ) : (
+          /* WORKSPACE NORMAL TAB */
+          <div className="space-y-6 max-w-4xl mx-auto py-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-xl p-4">
+              <div>
+                <span className="text-[10px] text-blue-400 uppercase font-semibold">Matière active</span>
+                <h2 className="text-xl font-bold text-white">{currentSubject}</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Rechercher un composant / concept..."
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white"
+                />
+                <button
+                  onClick={handleSearch}
+                  disabled={searchLoading}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold"
+                >
+                  {searchLoading ? 'Recherche...' : 'Rechercher'}
+                </button>
+                {searchResult && (
+                  <button
+                    onClick={clearSearch}
+                    className="bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs"
+                  >
+                    X
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {searchResult && (
+              <div className="bg-slate-900 border border-blue-500/40 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-blue-400">{searchResult.term}</h3>
+                </div>
+                {searchResult.imageUrl && (
+                  <img src={searchResult.imageUrl} alt={searchResult.term} className="w-full max-h-52 object-contain rounded-lg bg-slate-950 p-2" />
+                )}
+                <p className="text-xs text-slate-300 whitespace-pre-wrap">{searchResult.definition}</p>
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                  <p className="text-xs text-slate-400 font-semibold mb-1">Fonctionnement :</p>
+                  <p className="text-xs text-slate-300">{searchResult.howItWorks}</p>
+                </div>
+              </div>
             )}
 
-            {/* FORMULAIRE DE SAISIE */}
-            <section className="bg-slate-900 border border-slate-800 rounded-xl p-3 md:p-4 space-y-3 w-full">
-              <h2 className="text-sm md:text-md font-semibold text-slate-200">
-                Saisie & Analyse — <span className="text-blue-400">{currentSubject}</span>
-              </h2>
-              
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+              <label className="text-xs font-bold text-slate-300">Saisir ou coller votre texte de cours / sujet :</label>
               <textarea
-                rows={4}
+                rows={5}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder={`Saisissez ou collez le texte de votre cours de ${currentSubject}...`}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500"
+                placeholder="Collez ici le cours ou posez votre question en électronique..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white"
               />
-
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2">
-                <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept="image/*,.pdf,.txt" className="hidden" />
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2.5 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5"
-                >
-                  Importer Fichier / Photo
-                </button>
-
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
+                  >
+                    📁 Joindre un fichier
+                  </button>
+                </div>
                 <button
                   onClick={handleGenerate}
                   disabled={loading}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition-all"
                 >
-                  {loading ? 'Analyse en cours...' : 'Générer & Enregistrer'}
+                  {loading ? 'Génération en cours...' : 'Générer Résumé, Q&A & Quiz'}
                 </button>
               </div>
-            </section>
+            </div>
 
-            {/* RÉSULTAT DU COURS GENERÉ */}
             {currentData.summary && (
-              <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 w-full">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                  <h2 className="text-md md:text-lg font-bold text-emerald-400">Résumé ({currentSubject})</h2>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <button onClick={() => toggleAudio(currentData.summary || '')} className="flex-1 sm:flex-initial bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-300">
-                      {isPlayingAudio ? 'Arrêter' : 'Écouter'}
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  <h3 className="text-sm font-bold text-emerald-400">📘 Résumé du Cours</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => toggleAudio(currentData.summary || '')}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs"
+                    >
+                      {isPlayingAudio ? '⏹️ Arrêter Audio' : '🔊 Écouter'}
                     </button>
-                    <button onClick={() => handleExportPDF(`Fiche ${currentSubject}`, currentSubject, currentData.summary)} className="flex-1 sm:flex-initial bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-300 px-3 py-1.5 rounded-lg text-xs font-medium">
-                      PDF
+                    <button
+                      onClick={() => handleExportPDF(`Résumé_${currentSubject}`, currentSubject, currentData.summary)}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs"
+                    >
+                      📄 PDF
                     </button>
                   </div>
                 </div>
-                <p className="text-xs md:text-sm text-slate-200 leading-relaxed whitespace-pre-line">{currentData.summary}</p>
-              </section>
+                <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{currentData.summary}</p>
+              </div>
             )}
 
-            {/* QUESTIONS & RÉPONSES */}
             {currentData.qa && currentData.qa.length > 0 && (
-              <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 w-full">
-                <h2 className="text-md md:text-lg font-bold text-purple-400">Questions & Réponses</h2>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-bold text-blue-400">❓ Questions & Réponses Clés</h3>
                 <div className="space-y-2">
                   {currentData.qa.map((item, idx) => (
-                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                      <p className="text-xs md:text-sm font-semibold text-purple-300">Q: {item.question}</p>
-                      <p className="text-xs md:text-sm text-slate-300 mt-1">R: {item.answer}</p>
+                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
+                      <p className="text-xs font-bold text-white">Q{idx + 1}: {item.question}</p>
+                      <p className="text-xs text-slate-300">R: {item.answer}</p>
                     </div>
                   ))}
                 </div>
-              </section>
+              </div>
             )}
 
-            {/* QUIZ INTERACTIF */}
             {currentData.quiz && currentData.quiz.length > 0 && (
-              <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4 w-full">
-                <h2 className="text-md md:text-lg font-bold text-blue-400">Quiz d'Évaluation</h2>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+                <h3 className="text-sm font-bold text-purple-400">📝 Quiz d'auto-évaluation</h3>
                 <div className="space-y-4">
                   {currentData.quiz.map((q, qIdx) => {
-                    const selectedOption = userAnswers[qIdx];
-                    const isAnswered = selectedOption !== undefined;
-
+                    const selectedOpt = userAnswers[qIdx];
                     return (
-                      <div key={qIdx} className="bg-slate-950 p-3 md:p-4 rounded-lg border border-slate-800">
-                        <p className="text-xs md:text-sm font-medium mb-3 text-slate-200">{qIdx + 1}. {q.question}</p>
-                        <div className="grid grid-cols-1 gap-2">
+                      <div key={qIdx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                        <p className="text-xs font-bold text-white">{qIdx + 1}. {q.question}</p>
+                        <div className="space-y-1.5">
                           {q.options.map((opt, optIdx) => {
-                            let btnStyle = "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800";
-                            if (isAnswered) {
+                            let btnStyle = 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700';
+                            if (selectedOpt !== undefined) {
                               if (optIdx === q.correctIndex) {
-                                btnStyle = "bg-emerald-600/30 border-emerald-500 text-emerald-300 font-bold";
-                              } else if (optIdx === selectedOption && selectedOption !== q.correctIndex) {
-                                btnStyle = "bg-rose-600/30 border-rose-500 text-rose-300 font-bold";
-                              } else {
-                                btnStyle = "bg-slate-900/40 text-slate-500 border-slate-800 opacity-60";
+                                btnStyle = 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50';
+                              } else if (selectedOpt === optIdx) {
+                                btnStyle = 'bg-red-950/50 text-red-300 border-red-500/50';
                               }
                             }
                             return (
                               <button
                                 key={optIdx}
                                 onClick={() => handleOptionClick(qIdx, optIdx)}
-                                className={`text-left text-xs p-2.5 rounded-lg border transition-all w-full ${btnStyle}`}
+                                className={`w-full text-left p-2 rounded-lg text-xs border transition-all ${btnStyle}`}
                               >
                                 {opt}
                               </button>
@@ -746,136 +1094,10 @@ export default function SamnoteWorkspace() {
                     );
                   })}
                 </div>
-              </section>
-            )}
-          </>
-        )}
-
-        {/* VUE 2 : COURS & DEVOIRS DE RÉFÉRENCE */}
-        {activeTab === 'references' && (
-          <div className="space-y-4 md:space-y-6 w-full">
-            <section className="bg-slate-900 border border-blue-500/30 rounded-xl p-4 space-y-3 w-full">
-              <h2 className="text-md md:text-lg font-bold text-blue-400">
-                Enregistrer un Document de Référence
-              </h2>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <input
-                  type="text"
-                  placeholder="Titre du document..."
-                  value={refTitle}
-                  onChange={(e) => setRefTitle(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs md:text-sm focus:outline-none focus:border-blue-500"
-                />
-
-                <select
-                  value={refSubject}
-                  onChange={(e) => setRefSubject(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs md:text-sm text-slate-300"
-                >
-                  {subjectsList.filter(s => s.name !== 'Support & Contact').map(s => <option key={s.name} value={s.name}>{s.icon} {s.name}</option>)}
-                </select>
-
-                <select
-                  value={refType}
-                  onChange={(e) => setRefType(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs md:text-sm text-slate-300"
-                >
-                  <option value="Cours de Référence">Cours de Référence</option>
-                  <option value="Devoir de Référence">Devoir de Référence</option>
-                  <option value="Travaux Pratiques (TP)">Travaux Pratiques (TP)</option>
-                </select>
-              </div>
-
-              <textarea
-                rows={3}
-                placeholder="Texte du cours ou du devoir..."
-                value={refContentText}
-                onChange={(e) => setRefContentText(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs md:text-sm focus:outline-none focus:border-blue-500"
-              />
-
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-950 p-3 rounded-lg border border-slate-800">
-                <input
-                  type="file"
-                  ref={refPhotoInputRef}
-                  onChange={handleRefPhotoUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
-                
-                <button
-                  onClick={() => refPhotoInputRef.current?.click()}
-                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 rounded-lg text-xs font-medium"
-                >
-                  {refImageData ? "Photo ajoutée ✓" : "Ajouter une photo de référence"}
-                </button>
-
-                <button
-                  onClick={handleSaveReference}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-xs md:text-sm font-medium transition-colors"
-                >
-                  Enregistrer la référence
-                </button>
-              </div>
-            </section>
-
-            <section className="space-y-3">
-              <h2 className="text-md md:text-lg font-bold text-slate-200">Documents enregistrés ({references.length})</h2>
-              {references.length === 0 ? (
-                <p className="text-xs text-slate-400 italic">Aucun document de référence enregistré pour l'instant.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {references.map((r) => (
-                    <div key={r.id} className="bg-slate-900 border border-slate-800 p-3 rounded-xl flex flex-col justify-between space-y-2">
-                      <div>
-                        <div className="flex justify-between items-start">
-                          <h3 className="text-sm font-bold text-blue-400">{r.title}</h3>
-                          <button onClick={() => handleDeleteReference(r.id)} className="text-xs text-rose-400 hover:underline">Supprimer</button>
-                        </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">{r.subject} • {r.type} • {r.date}</p>
-                        <p className="text-xs text-slate-300 mt-2 line-clamp-3">{r.content}</p>
-                      </div>
-                      {r.imageDataUrl && (
-                        <img src={r.imageDataUrl} alt="Ref" className="h-20 object-cover rounded-lg border border-slate-800 mt-2" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
-
-        {/* VUE 3 : HISTORIQUE COMPLET */}
-        {activeTab === 'history' && (
-          <div className="space-y-4 w-full">
-            <h2 className="text-md md:text-lg font-bold text-slate-200">Historique des Générations ({history.length})</h2>
-            {history.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">Aucun historique disponible.</p>
-            ) : (
-              <div className="space-y-3">
-                {history.map((h) => (
-                  <div key={h.id} className="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="text-sm font-bold text-emerald-400">{h.title}</h3>
-                        <p className="text-[11px] text-slate-400">Matière : {h.subject} | Date : {h.date}</p>
-                      </div>
-                      <button onClick={() => handleDeleteHistory(h.id)} className="text-xs text-rose-400 hover:underline">Supprimer</button>
-                    </div>
-                    {h.summary && (
-                      <p className="text-xs text-slate-300 line-clamp-2 bg-slate-950 p-2 rounded border border-slate-800/60 mt-1">
-                        {h.summary}
-                      </p>
-                    )}
-                  </div>
-                ))}
               </div>
             )}
           </div>
         )}
-
       </main>
     </div>
   );
