@@ -598,7 +598,7 @@ export default function SamnoteWorkspace() {
             {/* 1. LOI D'OHM */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-sm font-bold text-blue-400">Loi d'Ohm ($U = R \times I, P = U \times I$)</h3>
+                <h3 className="text-sm font-bold text-blue-400">Loi d'Ohm (U = R × I, P = U × I)</h3>
                 <span className="text-[10px] text-slate-500">Remplissez 2 champs pour calculer les autres</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -697,12 +697,12 @@ export default function SamnoteWorkspace() {
 
             {/* 3. DIVISEUR DE TENSION */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-            <h3 className="text-sm font-bold text-amber-400">
-              Pont Diviseur de Tension (U<sub>s</sub> = U<sub>e</sub> &times; R<sub>2</sub> / (R<sub>1</sub> + R<sub>2</sub>))
-            </h3>
+              <h3 className="text-sm font-bold text-amber-400">
+                Pont Diviseur de Tension [Us = Ue × R2 / (R1 + R2)]
+              </h3>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-[11px] text-slate-400 font-medium">Tension d'entrée $U_e$ (V)</label>
+                  <label className="text-[11px] text-slate-400 font-medium">Tension d'entrée Ue (V)</label>
                   <input
                     type="number"
                     value={divUe}
@@ -711,7 +711,7 @@ export default function SamnoteWorkspace() {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-400 font-medium">Résistance $R_1$ (Ω)</label>
+                  <label className="text-[11px] text-slate-400 font-medium">Résistance R1 (Ω)</label>
                   <input
                     type="number"
                     value={divR1}
@@ -720,7 +720,7 @@ export default function SamnoteWorkspace() {
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] text-slate-400 font-medium">Résistance $R_2$ (Ω)</label>
+                  <label className="text-[11px] text-slate-400 font-medium">Résistance R2 (Ω)</label>
                   <input
                     type="number"
                     value={divR2}
@@ -730,7 +730,7 @@ export default function SamnoteWorkspace() {
                 </div>
               </div>
               <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center mt-2">
-                <span className="text-xs text-slate-300">Tension de sortie calculée ($U_s$) :</span>
+                <span className="text-xs text-slate-300">Tension de sortie calculée (Us) :</span>
                 <span className="text-sm font-bold text-amber-400">{calculateVoltageDivider().toFixed(3)} V</span>
               </div>
             </div>
@@ -782,318 +782,321 @@ export default function SamnoteWorkspace() {
             </div>
           </div>
         ) : activeTab === 'references' ? (
+          /* VUE : COURS & DEVOIRS DE RÉFÉRENCE */
           <div className="space-y-6 max-w-4xl mx-auto py-2">
             <div>
-              <h2 className="text-xl font-bold text-white">Cours & Devoirs Référence</h2>
-              <p className="text-xs text-slate-400">Enregistrez vos cours, TP ou devoirs pour guider l'assistant IA.</p>
+              <h2 className="text-xl font-bold text-white">Cours & Devoirs de Référence</h2>
+              <p className="text-xs text-slate-400">Enregistrez vos fiches, photos de cours et devoirs pour alimenter le générateur IA.</p>
             </div>
 
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
-              <h3 className="text-sm font-bold text-blue-400">Ajouter une Référence</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] text-slate-400 font-medium">Titre</label>
-                  <input
-                    type="text"
-                    value={refTitle}
-                    onChange={(e) => setRefTitle(e.target.value)}
-                    placeholder="Ex: TP Transistor BJT"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] text-slate-400 font-medium">Matière</label>
-                  <select
-                    value={refSubject}
-                    onChange={(e) => setRefSubject(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
-                  >
-                    {subjectsList.filter(s => s.name !== 'Support & Contact').map(s => (
-                      <option key={s.name} value={s.name}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[11px] text-slate-400 font-medium">Type</label>
+              <h3 className="text-sm font-bold text-blue-400">Ajouter une Nouvelle Référence</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  placeholder="Titre du document..."
+                  value={refTitle}
+                  onChange={(e) => setRefTitle(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white"
+                />
+                <select
+                  value={refSubject}
+                  onChange={(e) => setRefSubject(e.target.value)}
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white"
+                >
+                  {subjectsList.filter(s => s.name !== 'Support & Contact').map(s => (
+                    <option key={s.name} value={s.name}>{s.name}</option>
+                  ))}
+                </select>
                 <select
                   value={refType}
                   onChange={(e) => setRefType(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
+                  className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white"
                 >
                   <option value="Cours de Référence">Cours de Référence</option>
-                  <option value="Énoncé de Devoir">Énoncé de Devoir</option>
-                  <option value="Compte rendu TP">Compte rendu TP</option>
+                  <option value="Devoir / Exercice">Devoir / Exercice</option>
+                  <option value="Fiche Technique">Fiche Technique</option>
                 </select>
               </div>
 
-              <div>
-                <label className="text-[11px] text-slate-400 font-medium">Contenu du texte (optionnel si photo)</label>
-                <textarea
-                  rows={3}
-                  value={refContentText}
-                  onChange={(e) => setRefContentText(e.target.value)}
-                  placeholder="Collez le texte du cours ou notes..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-white mt-1"
-                />
-              </div>
+              <textarea
+                rows={4}
+                placeholder="Saisissez ou collez le texte du cours / devoir ici..."
+                value={refContentText}
+                onChange={(e) => setRefContentText(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-white"
+              />
 
-              <div className="flex items-center gap-3">
-                <input
-                  type="file"
-                  accept="image/*"
-                  ref={refPhotoInputRef}
-                  onChange={handleRefPhotoUpload}
-                  className="hidden"
-                />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => refPhotoInputRef.current?.click()}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-700 flex items-center gap-2"
+                  >
+                    <span>📷</span>
+                    <span>{refImageData ? 'Photo ajoutée ✓' : 'Ajouter une photo'}</span>
+                  </button>
+                  <input
+                    ref={refPhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleRefPhotoUpload}
+                    className="hidden"
+                  />
+                </div>
+
                 <button
-                  type="button"
-                  onClick={() => refPhotoInputRef.current?.click()}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-xs font-semibold border border-slate-700"
+                  onClick={handleSaveReference}
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-md"
                 >
-                  📷 Ajouter une photo
+                  Enregistrer la Référence
                 </button>
-                {refImageData && (
-                  <span className="text-xs text-emerald-400">Photo chargée ✓</span>
-                )}
               </div>
-
-              <button
-                onClick={handleSaveReference}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition-all"
-              >
-                Enregistrer la Référence
-              </button>
             </div>
 
+            {/* LISTE DES RÉFÉRENCES */}
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-white">Références Enregistrées ({references.length})</h3>
+              <h3 className="text-sm font-bold text-slate-300">Documents Enregistrés ({references.length})</h3>
               {references.length === 0 ? (
-                <p className="text-xs text-slate-500 italic">Aucune référence enregistrée pour le moment.</p>
+                <p className="text-xs text-slate-500">Aucun document enregistre pour le moment.</p>
               ) : (
-                references.map((ref) => (
-                  <div key={ref.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex justify-between items-start gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-blue-400">{ref.subject}</span>
-                        <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-300">{ref.type}</span>
-                        <span className="text-[10px] text-slate-500">{ref.date}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {references.map((ref) => (
+                    <div key={ref.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2 relative">
+                      <div className="flex justify-between items-start pr-6">
+                        <span className="text-xs font-bold text-blue-400">{ref.title}</span>
+                        <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full">{ref.type}</span>
                       </div>
-                      <h4 className="text-sm font-bold text-white">{ref.title}</h4>
-                      <p className="text-xs text-slate-300 whitespace-pre-wrap">{ref.content}</p>
-                      {ref.imageDataUrl && (
-                        <img src={ref.imageDataUrl} alt="Référence" className="w-32 h-32 object-cover rounded-lg mt-2 border border-slate-700" />
-                      )}
+                      <p className="text-[11px] text-slate-400">Matière: {ref.subject} | {ref.date}</p>
+                      <p className="text-xs text-slate-300 line-clamp-3">{ref.content}</p>
+                      <button
+                        onClick={() => handleDeleteReference(ref.id)}
+                        className="absolute top-3 right-3 text-slate-500 hover:text-red-400 text-xs"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteReference(ref.id)}
-                      className="text-xs text-red-400 hover:text-red-300 px-2 py-1 bg-red-950/40 border border-red-900/40 rounded-lg"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
         ) : activeTab === 'history' ? (
+          /* VUE : HISTORIQUE */
           <div className="space-y-6 max-w-4xl mx-auto py-2">
             <div>
               <h2 className="text-xl font-bold text-white">Historique des Générations</h2>
-              <p className="text-xs text-slate-400">Retrouvez vos résumés et quiz générés précédemment.</p>
+              <p className="text-xs text-slate-400">Consultez vos révisions, résumés et quiz sauvegardés.</p>
             </div>
+
             {history.length === 0 ? (
-              <p className="text-xs text-slate-500 italic">Aucun historique pour le moment.</p>
+              <p className="text-xs text-slate-500">Aucun historique disponible pour l'instant.</p>
             ) : (
-              history.map((item) => (
-                <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-blue-400">{item.subject}</span>
-                      <span className="text-[10px] text-slate-500">{item.date}</span>
+              <div className="space-y-4">
+                {history.map((item) => (
+                  <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3 relative">
+                    <div className="flex justify-between items-start pr-6">
+                      <h3 className="text-sm font-bold text-emerald-400">{item.title}</h3>
+                      <button
+                        onClick={() => handleDeleteHistory(item.id)}
+                        className="text-slate-500 hover:text-red-400 text-xs"
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteHistory(item.id)}
-                      className="text-xs text-red-400 hover:text-red-300"
-                    >
-                      Supprimer
-                    </button>
+                    {item.summary && (
+                      <p className="text-xs text-slate-300 bg-slate-950 p-3 rounded-lg border border-slate-800/80 whitespace-pre-wrap">
+                        {item.summary}
+                      </p>
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleExportPDF(item.title, item.subject, item.summary)}
+                        className="bg-slate-800 hover:bg-slate-700 text-blue-400 text-xs px-3 py-1.5 rounded-lg border border-slate-700"
+                      >
+                        📄 Exporter en PDF
+                      </button>
+                    </div>
                   </div>
-                  <h4 className="text-sm font-bold text-white">{item.title}</h4>
-                  {item.summary && (
-                    <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs text-slate-300 whitespace-pre-wrap">
-                      {item.summary}
-                    </div>
-                  )}
-                  {item.summary && (
-                    <button
-                      onClick={() => handleExportPDF(item.title, item.subject, item.summary)}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold"
-                    >
-                      📄 Exporter en PDF
-                    </button>
-                  )}
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         ) : (
-          /* WORKSPACE NORMAL TAB */
-          <div className="space-y-6 max-w-4xl mx-auto py-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 rounded-xl p-4">
+          /* VUE : ESPACE DE TRAVAIL (WORKSPACE) */
+          <div className="space-y-6 max-w-4xl mx-auto">
+            {/* ENTÊTE DE MATIÈRE */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 border border-slate-800 rounded-xl p-4">
               <div>
-                <span className="text-[10px] text-blue-400 uppercase font-semibold">Matière active</span>
-                <h2 className="text-xl font-bold text-white">{currentSubject}</h2>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>{subjectsList.find(s => s.name === currentSubject)?.icon}</span>
+                  <span>{currentSubject}</span>
+                </h2>
+                <p className="text-xs text-slate-400">Générez un résumé enrichi, un quiz et des illustrations.</p>
               </div>
-              <div className="flex items-center gap-2">
+
+              {/* BARRE DE RECHERCHE D'UN COMPOSANT */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <input
                   type="text"
+                  placeholder="Rechercher un composant..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher un composant / concept..."
-                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white"
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white w-full sm:w-48"
                 />
                 <button
                   onClick={handleSearch}
                   disabled={searchLoading}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg"
                 >
-                  {searchLoading ? 'Recherche...' : 'Rechercher'}
+                  {searchLoading ? '...' : '🔍'}
                 </button>
-                {searchResult && (
-                  <button
-                    onClick={clearSearch}
-                    className="bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs"
-                  >
-                    X
-                  </button>
-                )}
               </div>
             </div>
 
+            {/* RÉSULTAT DE LA RECHERCHE DE COMPOSANT */}
             {searchResult && (
-              <div className="bg-slate-900 border border-blue-500/40 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-base font-bold text-blue-400">{searchResult.term}</h3>
-                </div>
-                {searchResult.imageUrl && (
-                  <img src={searchResult.imageUrl} alt={searchResult.term} className="w-full max-h-52 object-contain rounded-lg bg-slate-950 p-2" />
-                )}
-                <p className="text-xs text-slate-300 whitespace-pre-wrap">{searchResult.definition}</p>
-                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                  <p className="text-xs text-slate-400 font-semibold mb-1">Fonctionnement :</p>
-                  <p className="text-xs text-slate-300">{searchResult.howItWorks}</p>
+              <div className="bg-slate-900 border border-blue-500/40 rounded-xl p-4 space-y-3 relative">
+                <button
+                  onClick={clearSearch}
+                  className="absolute top-3 right-3 text-slate-500 hover:text-slate-300 text-xs"
+                >
+                  ✕
+                </button>
+                <h3 className="text-sm font-bold text-blue-400">Fiche Composant : {searchResult.term}</h3>
+                <div className="flex flex-col md:flex-row gap-4">
+                  {searchResult.imageUrl && (
+                    <img
+                      src={searchResult.imageUrl}
+                      alt={searchResult.term}
+                      className="w-full md:w-36 h-36 object-contain bg-slate-950 rounded-lg p-2 border border-slate-800"
+                    />
+                  )}
+                  <div className="space-y-2 text-xs text-slate-300 flex-1">
+                    <p><strong>Définition :</strong> {searchResult.definition}</p>
+                    <p><strong>Fonctionnement :</strong> {searchResult.howItWorks}</p>
+                  </div>
                 </div>
               </div>
             )}
 
+            {/* ENTRÉE DE TEXTE ET CHARGEMENT DE FICHIER */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-              <label className="text-xs font-bold text-slate-300">Saisir ou coller votre texte de cours / sujet :</label>
               <textarea
                 rows={5}
+                placeholder={`Collez votre cours de ${currentSubject} ici ou téléchargez un fichier...`}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Collez ici le cours ou posez votre question en électronique..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-blue-500 transition-colors"
               />
-              <div className="flex flex-wrap items-center justify-between gap-2">
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg border border-slate-700 flex items-center gap-1.5"
+                  >
+                    <span>📁</span>
+                    <span>Charger un fichier</span>
+                  </button>
                   <input
-                    type="file"
                     ref={fileInputRef}
+                    type="file"
+                    accept=".txt,text/*"
                     onChange={handleFileUpload}
                     className="hidden"
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700"
-                  >
-                    📁 Joindre un fichier
-                  </button>
                 </div>
+
                 <button
                   onClick={handleGenerate}
                   disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-5 rounded-xl text-xs transition-all"
+                  className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-lg transition-all"
                 >
-                  {loading ? 'Génération en cours...' : 'Générer Résumé, Q&A & Quiz'}
+                  {loading ? 'Génération en cours...' : '⚡ Générer Résumé & Quiz'}
                 </button>
               </div>
             </div>
 
+            {/* RÉSULTATS GÉNÉRÉS */}
             {currentData.summary && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-sm font-bold text-emerald-400">📘 Résumé du Cours</h3>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleAudio(currentData.summary || '')}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs"
-                    >
-                      {isPlayingAudio ? '⏹️ Arrêter Audio' : '🔊 Écouter'}
-                    </button>
-                    <button
-                      onClick={() => handleExportPDF(`Résumé_${currentSubject}`, currentSubject, currentData.summary)}
-                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2.5 py-1.5 rounded-lg text-xs"
-                    >
-                      📄 PDF
-                    </button>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">{currentData.summary}</p>
-              </div>
-            )}
-
-            {currentData.qa && currentData.qa.length > 0 && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-                <h3 className="text-sm font-bold text-blue-400">❓ Questions & Réponses Clés</h3>
-                <div className="space-y-2">
-                  {currentData.qa.map((item, idx) => (
-                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-1">
-                      <p className="text-xs font-bold text-white">Q{idx + 1}: {item.question}</p>
-                      <p className="text-xs text-slate-300">R: {item.answer}</p>
+              <div className="space-y-6">
+                {/* RÉSUMÉ */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                  <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 className="text-sm font-bold text-emerald-400">📘 Résumé du Cours</h3>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => toggleAudio(currentData.summary || '')}
+                        className="text-xs bg-slate-800 text-slate-300 hover:text-white px-2.5 py-1 rounded-lg border border-slate-700"
+                      >
+                        {isPlayingAudio ? '🔇 Stopper' : '🔊 Écouter'}
+                      </button>
+                      <button
+                        onClick={() => handleExportPDF(`Cours de ${currentSubject}`, currentSubject, currentData.summary)}
+                        className="text-xs bg-slate-800 text-blue-400 hover:text-blue-300 px-2.5 py-1 rounded-lg border border-slate-700"
+                      >
+                        📄 PDF
+                      </button>
                     </div>
-                  ))}
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                    {currentData.summary}
+                  </p>
                 </div>
-              </div>
-            )}
 
-            {currentData.quiz && currentData.quiz.length > 0 && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
-                <h3 className="text-sm font-bold text-purple-400">📝 Quiz d'auto-évaluation</h3>
-                <div className="space-y-4">
-                  {currentData.quiz.map((q, qIdx) => {
-                    const selectedOpt = userAnswers[qIdx];
-                    return (
-                      <div key={qIdx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <p className="text-xs font-bold text-white">{qIdx + 1}. {q.question}</p>
-                        <div className="space-y-1.5">
-                          {q.options.map((opt, optIdx) => {
-                            let btnStyle = 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700';
-                            if (selectedOpt !== undefined) {
-                              if (optIdx === q.correctIndex) {
-                                btnStyle = 'bg-emerald-950/50 text-emerald-300 border-emerald-500/50';
-                              } else if (selectedOpt === optIdx) {
-                                btnStyle = 'bg-red-950/50 text-red-300 border-red-500/50';
-                              }
-                            }
-                            return (
-                              <button
-                                key={optIdx}
-                                onClick={() => handleOptionClick(qIdx, optIdx)}
-                                className={`w-full text-left p-2 rounded-lg text-xs border transition-all ${btnStyle}`}
-                              >
-                                {opt}
-                              </button>
-                            );
-                          })}
+                {/* QUESTIONS / RÉPONSES */}
+                {currentData.qa && currentData.qa.length > 0 && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                    <h3 className="text-sm font-bold text-purple-400">❓ Questions Essentielles</h3>
+                    <div className="space-y-2">
+                      {currentData.qa.map((item, idx) => (
+                        <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800/80 text-xs">
+                          <p className="font-semibold text-slate-200">Q: {item.question}</p>
+                          <p className="text-slate-400 mt-1">R: {item.answer}</p>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* QUIZ INTERACTIF */}
+                {currentData.quiz && currentData.quiz.length > 0 && (
+                  <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+                    <h3 className="text-sm font-bold text-amber-400">📝 Quiz de Vérification</h3>
+                    <div className="space-y-4">
+                      {currentData.quiz.map((q, qIdx) => (
+                        <div key={qIdx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                          <p className="text-xs font-semibold text-slate-200">{qIdx + 1}. {q.question}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {q.options.map((opt, optIdx) => {
+                              const isSelected = userAnswers[qIdx] === optIdx;
+                              const isCorrect = q.correctIndex === optIdx;
+                              const hasAnswered = userAnswers[qIdx] !== undefined;
+
+                              let btnStyle = 'bg-slate-900 border-slate-800 text-slate-300';
+                              if (hasAnswered) {
+                                if (isCorrect) btnStyle = 'bg-emerald-950 border-emerald-500/50 text-emerald-300';
+                                else if (isSelected) btnStyle = 'bg-red-950 border-red-500/50 text-red-300';
+                              }
+
+                              return (
+                                <button
+                                  key={optIdx}
+                                  onClick={() => handleOptionClick(qIdx, optIdx)}
+                                  className={`text-left text-xs p-2.5 rounded-lg border transition-all ${btnStyle}`}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
